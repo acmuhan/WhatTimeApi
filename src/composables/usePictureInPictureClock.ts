@@ -32,12 +32,6 @@ export function usePictureInPictureClock(msRef: Ref<number | null>, pushError: (
   function setupSupportFlags() {
     docApi.value = getDocumentPictureInPictureApi();
     videoPipSupported.value = 'pictureInPictureEnabled' in document || 'webkitSupportsPresentationMode' in HTMLVideoElement.prototype;
-
-  function setupSupportFlags() {
-    docApi.value = getDocumentPictureInPictureApi();
-    videoPipSupported.value =
-      'pictureInPictureEnabled' in document ||
-      'webkitSupportsPresentationMode' in HTMLVideoElement.prototype;
     pipSupported.value = docApi.value !== null || videoPipSupported.value;
   }
 
@@ -280,7 +274,6 @@ export function usePictureInPictureClock(msRef: Ref<number | null>, pushError: (
       }
 
       if (await openVideoPip()) {
-        pipActive.value = true;
         return;
       }
 
@@ -335,7 +328,6 @@ export function usePictureInPictureClock(msRef: Ref<number | null>, pushError: (
       unbindVideoPipListeners(hiddenVideo.value);
       hiddenVideo.value.remove();
     }
-    hiddenVideo.value?.remove();
   });
 
   setupSupportFlags();

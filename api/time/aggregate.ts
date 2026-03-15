@@ -14,11 +14,16 @@ type ResponseLike = {
 
 const service = createTimeAggregatorService();
 
+function setCorsHeaders(res: ResponseLike) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+}
+
 export default async function handler(req: RequestLike, res: ResponseLike) {
+  setCorsHeaders(res);
+
   if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.status(204).end();
     return;
   }
