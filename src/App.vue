@@ -34,6 +34,9 @@ const CALIBRATION_CONFIG = {
 type GroupFilter = 'all' | SourceStatus;
 type GroupKey = SourceStatus;
 type MainClockSource = 'reference' | SourceKey;
+type DocumentPictureInPictureApi = {
+  requestWindow: (options?: { width?: number; height?: number }) => Promise<Window>;
+};
 type SourceCard = {
   sourceKey: SourceKey;
   label: string;
@@ -49,10 +52,13 @@ const aggregate = ref<AggregateResponse | null>(null);
 const loading = ref(false);
 const autoCalibration = ref(true);
 const showMilliseconds = ref(true);
+const millisecondDigits = ref(1);
 const mobileSettingsExpanded = ref(false);
 const calibrationIntervalSec = ref<number>(10);
 const groupFilter = ref<GroupFilter>('all');
-const mainClockSource = ref<MainClockSource>('reference');
+const mainClockSource = ref<MainClockSource>('meituan');
+const pipSupported = ref(false);
+const pipActive = ref(false);
 const recentErrors = ref<string[]>([]);
 const renderPerfNow = ref(getPerfNow());
 const calibrationAtMs = ref<number | null>(null);
@@ -61,8 +67,12 @@ const clockBaselines = ref<Record<SourceKey, ClockBaseline | null>>(createEmptyB
 let displayTimer: number | null = null;
 let autoCalibrationTimer: number | null = null;
 let inFlightCalibration: Promise<void> | null = null;
+let pipClockTimer: number | null = null;
+let pipClockWindow: Window | null = null;
+let pipResizeHandler: ((() => void) | null) = null;
 
 const calibrationIntervalMs = computed(() => calibrationIntervalSec.value * 1000);
+const MILLISECOND_DIGIT_OPTIONS = [1, 2, 3] as const;
 const MAIN_CLOCK_SOURCE_OPTIONS: ReadonlyArray<{ key: MainClockSource; label: string }> = [
   { key: 'reference', label: '中位数' },
   { key: 'taobao', label: '淘宝' },
@@ -187,14 +197,17 @@ const mainClockState = computed(() => {
   };
 });
 
-const clockPrimary = computed(() => formatClockPrimary(mainClockState.value.ms));
+const clockPrimaryParts = computed(() => formatClockPrimaryParts(mainClockState.value.ms));
 
 const clockSecondary = computed(() => {
   if (mainClockState.value.ms === null) {
-    return '-- 毫秒 · 本地偏差 --';
+    return null;
   }
 
-  return `${formatMillis(mainClockState.value.ms)} · 本地偏差 ${formatSignedMs(mainClockState.value.offsetMs)}`;
+  return {
+    millis: formatMillis(mainClockState.value.ms),
+    offset: formatSignedMs(mainClockState.value.offsetMs)
+  };
 });
 
 const calibrationMode = computed<'calibrating' | 'smooth' | 'locked'>(() => {
@@ -227,7 +240,7 @@ const calibrationModeLabel = computed(() => {
 
 const calibrationModeClass = computed(() => `mode-${calibrationMode.value}`);
 
-const generatedAtText = computed(() => formatTimestampDetailed(aggregate.value?.generatedAtMs ?? null));
+const generatedAtParts = computed(() => formatTimestampDetailedParts(aggregate.value?.generatedAtMs ?? null));
 
 const nextCalibrationText = computed(() => {
   if (!autoCalibration.value) {
@@ -398,6 +411,169 @@ function setMainClockSource(next: MainClockSource) {
   mainClockSource.value = next;
 }
 
+function setMillisecondDigits(next: number) {
+  millisecondDigits.value = clamp(Math.trunc(next), 1, 3);
+}
+
+function getDocumentPictureInPictureApi(): DocumentPictureInPictureApi | null {
+  const candidate = (window as Window & { documentPictureInPicture?: DocumentPictureInPictureApi })
+    .documentPictureInPicture;
+  return candidate ?? null;
+}
+
+function formatPipClock(ms: number | null): string {
+  return `${formatPipClockHead(ms)}.${formatMillisecondFraction(ms)}`;
+}
+
+function formatPipClockHtml(ms: number | null): string {
+  return `${formatPipClockHead(ms)}.<span class="pip-ms-accent">${formatMillisecondFraction(ms)}</span>`;
+}
+
+function updatePipClock() {
+  if (!pipClockWindow || pipClockWindow.closed) {
+    stopPipClockTimer();
+    pipClockWindow = null;
+    pipActive.value = false;
+    return;
+  }
+
+  const clock = pipClockWindow.document.getElementById('pip-clock');
+  if (clock) {
+    clock.innerHTML = formatPipClockHtml(mainClockState.value.ms);
+    pipResizeHandler?.();
+  }
+}
+
+function startPipClockTimer() {
+  stopPipClockTimer();
+  pipClockTimer = window.setInterval(() => {
+    updatePipClock();
+  }, 33);
+}
+
+function stopPipClockTimer() {
+  if (pipClockTimer !== null) {
+    window.clearInterval(pipClockTimer);
+    pipClockTimer = null;
+  }
+}
+
+function cleanupPipState() {
+  stopPipClockTimer();
+  if (pipClockWindow && pipResizeHandler) {
+    pipClockWindow.removeEventListener('resize', pipResizeHandler);
+  }
+  pipResizeHandler = null;
+  pipClockWindow = null;
+  pipActive.value = false;
+}
+
+async function openPipClock() {
+  const api = getDocumentPictureInPictureApi();
+  if (!api) {
+    pushError('当前浏览器不支持画中画时钟');
+    return;
+  }
+
+  if (pipClockWindow && !pipClockWindow.closed) {
+    pipClockWindow.focus();
+    return;
+  }
+
+  try {
+    const pipWindow = await api.requestWindow({ width: 360, height: 220 });
+    pipClockWindow = pipWindow;
+
+    const doc = pipWindow.document;
+    doc.body.innerHTML = '';
+
+    const style = doc.createElement('style');
+    style.textContent = `
+      :root { color-scheme: dark; }
+      body {
+        margin: 0;
+        height: 100vh;
+        width: 100vw;
+        display: grid;
+        place-items: center;
+        background: #0a1420;
+        font-family: 'Sora', 'Manrope', 'Segoe UI Variable', 'PingFang SC', 'Noto Sans SC', sans-serif;
+        overflow: hidden;
+      }
+      #pip-clock {
+        font-size: 64px;
+        font-weight: 900;
+        line-height: 1;
+        color: #e8f3ff;
+        letter-spacing: 0.04em;
+        font-variant-numeric: tabular-nums;
+        text-shadow: 0 10px 28px rgba(58, 132, 255, 0.35);
+        white-space: nowrap;
+        user-select: none;
+      }
+      .pip-ms-accent {
+        color: #ffb6c8;
+      }
+    `;
+    doc.head.append(style);
+
+    const clock = doc.createElement('div');
+    clock.id = 'pip-clock';
+    clock.innerHTML = formatPipClockHtml(mainClockState.value.ms);
+    doc.body.append(clock);
+
+    const applyPipClockScale = () => {
+      const target = pipWindow.document.getElementById('pip-clock');
+      if (!target) {
+        return;
+      }
+
+      const width = Math.max(1, pipWindow.innerWidth);
+      const height = Math.max(1, pipWindow.innerHeight);
+      const content = target.textContent ?? '00:00:00';
+
+      // Fit by both width and height to avoid overflow in narrow PiP windows.
+      const widthPerChar = 0.72;
+      const sizeByWidth = (width - 12) / Math.max(1, content.length * widthPerChar);
+      const sizeByHeight = (height - 12) * 0.78;
+      const size = Math.floor(Math.min(sizeByWidth, sizeByHeight));
+      target.style.fontSize = `${Math.max(18, size)}px`;
+    };
+    pipResizeHandler = applyPipClockScale;
+    pipWindow.addEventListener('resize', applyPipClockScale);
+    applyPipClockScale();
+
+    pipWindow.addEventListener('pagehide', () => {
+      cleanupPipState();
+    });
+
+    pipActive.value = true;
+    startPipClockTimer();
+    updatePipClock();
+    applyPipClockScale();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'unknown_error';
+    pushError(`开启画中画失败: ${message}`);
+    cleanupPipState();
+  }
+}
+
+function closePipClock() {
+  if (pipClockWindow && !pipClockWindow.closed) {
+    pipClockWindow.close();
+  }
+  cleanupPipState();
+}
+
+async function togglePipClock() {
+  if (pipActive.value) {
+    closePipClock();
+    return;
+  }
+
+  await openPipClock();
+}
+
 function sourceStatusLabel(status: TimeSourceData['status']) {
   if (status === 'ok') {
     return '正常';
@@ -414,30 +590,54 @@ function sourceStatusClass(status: TimeSourceData['status']) {
   return `status-${status}`;
 }
 
-function formatClockPrimary(ms: number | null): string {
+function formatClockPrimaryParts(ms: number | null): { time: string; fraction: string | null } {
+  return {
+    time: formatClockTime(ms),
+    fraction: showMilliseconds.value ? formatMillisecondFraction(ms) : null
+  };
+}
+
+function formatClockTime(ms: number | null): string {
   if (ms === null) {
-    return showMilliseconds.value ? '--:--:--.--' : '--:--:--';
+    return '--:--:--';
   }
 
-  const time = new Date(ms).toLocaleTimeString('zh-CN', {
+  return new Date(ms).toLocaleTimeString('zh-CN', {
     hour12: false,
     timeZone: 'Asia/Shanghai'
   });
-  if (!showMilliseconds.value) {
-    return time;
+}
+
+function formatPipClockHead(ms: number | null): string {
+  if (ms === null) {
+    return '--:--:--';
   }
 
-  const centiseconds = String(Math.floor((Math.abs(Math.trunc(ms)) % 1000) / 10)).padStart(2, '0');
-  return `${time}.${centiseconds}`;
+  const date = new Date(ms);
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  const ss = String(date.getSeconds()).padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
+}
+
+function formatMillisecondFraction(ms: number | null): string {
+  const digits = clamp(Math.trunc(millisecondDigits.value), 1, 3);
+  if (ms === null) {
+    return '-'.repeat(digits);
+  }
+
+  const raw = Math.abs(Math.trunc(ms)) % 1000;
+  const divisor = 10 ** (3 - digits);
+  const value = Math.floor(raw / divisor);
+  return String(value).padStart(digits, '0');
 }
 
 function formatMillis(ms: number | null): string {
   if (ms === null) {
-    return '--- 毫秒';
+    return `${'-'.repeat(clamp(Math.trunc(millisecondDigits.value), 1, 3))} 毫秒`;
   }
 
-  const absMs = Math.abs(Math.trunc(ms));
-  return `${String(absMs % 1000).padStart(3, '0')} 毫秒`;
+  return `${formatMillisecondFraction(ms)} 毫秒`;
 }
 
 function formatSignedMs(ms: number | null): string {
@@ -457,9 +657,9 @@ function formatLatency(ms: number | null): string {
   return `${Math.trunc(ms)} 毫秒`;
 }
 
-function formatTimestampDetailed(ms: number | null): string {
+function formatTimestampDetailedParts(ms: number | null): { head: string; tail: string | null } {
   if (ms === null) {
-    return '--';
+    return { head: '--', tail: null };
   }
 
   const date = new Date(ms);
@@ -467,8 +667,7 @@ function formatTimestampDetailed(ms: number | null): string {
     hour12: false,
     timeZone: 'Asia/Shanghai'
   });
-  const tail = String(Math.abs(Math.trunc(ms)) % 1000).padStart(3, '0');
-  return `${head}.${tail}`;
+  return { head, tail: formatMillisecondFraction(ms) };
 }
 
 function formatCountdown(ms: number): string {
@@ -506,6 +705,7 @@ watch(calibrationIntervalSec, () => {
 onMounted(() => {
   startDisplayTimer();
   void calibrateNow('initial');
+  pipSupported.value = getDocumentPictureInPictureApi() !== null;
 
   if (autoCalibration.value) {
     startAutoCalibrationTimer();
@@ -517,6 +717,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   stopDisplayTimer();
   stopAutoCalibrationTimer();
+  closePipClock();
   document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
 </script>
@@ -533,10 +734,29 @@ onBeforeUnmount(() => {
 
       <div class="hero-clock-zone">
         <div class="clock-text-wrap">
-          <p class="main-clock" data-testid="main-clock-primary">{{ clockPrimary }}</p>
-          <p class="main-clock-sub" data-testid="main-clock-secondary">{{ clockSecondary }}</p>
+          <p class="main-clock" data-testid="main-clock-primary">
+            <span>{{ clockPrimaryParts.time }}</span>
+            <template v-if="clockPrimaryParts.fraction !== null">
+              <span>.</span>
+              <span class="ms-accent">{{ clockPrimaryParts.fraction }}</span>
+            </template>
+          </p>
+          <p class="main-clock-sub" data-testid="main-clock-secondary">
+            <template v-if="clockSecondary !== null">
+              <span class="ms-accent">{{ clockSecondary.millis }}</span>
+              <span> · 本地偏差 {{ clockSecondary.offset }}</span>
+            </template>
+            <template v-else>-- 毫秒 · 本地偏差 --</template>
+          </p>
           <div class="calibration-meta">
-            <span>上次校准: {{ generatedAtText }}</span>
+            <span>
+              上次校准:
+              <span>{{ generatedAtParts.head }}</span>
+              <template v-if="generatedAtParts.tail !== null">
+                <span>.</span>
+                <span class="ms-accent">{{ generatedAtParts.tail }}</span>
+              </template>
+            </span>
             <span data-testid="next-calibration">{{ nextCalibrationText }}</span>
           </div>
         </div>
@@ -580,6 +800,26 @@ onBeforeUnmount(() => {
               @click="setMainClockSource(option.key)"
             >
               {{ option.label }}
+            </button>
+          </div>
+        </div>
+
+        <div class="control-card">
+          <p class="control-title">手机画中画</p>
+          <div class="action-row">
+            <button
+              type="button"
+              class="pill-btn"
+              :class="pipActive ? 'is-active' : ''"
+              :disabled="!pipSupported && !pipActive"
+              data-testid="pip-toggle"
+              @click="togglePipClock"
+            >
+              {{
+                !pipSupported && !pipActive
+                  ? '画中画: 不支持'
+                  : (pipActive ? '画中画: 关闭' : '画中画: 开启')
+              }}
             </button>
           </div>
         </div>
@@ -672,6 +912,19 @@ onBeforeUnmount(() => {
               {{ showMilliseconds ? '毫秒: 显示' : '毫秒: 隐藏' }}
             </button>
           </div>
+          <div class="preset-row">
+            <button
+              v-for="digits in MILLISECOND_DIGIT_OPTIONS"
+              :key="digits"
+              type="button"
+              class="preset-btn"
+              :class="millisecondDigits === digits ? 'is-active' : ''"
+              :data-testid="`millis-digits-${digits}`"
+              @click="setMillisecondDigits(digits)"
+            >
+              {{ digits }}位
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -698,9 +951,16 @@ onBeforeUnmount(() => {
               </div>
               <div>
                 <p class="source-name" data-testid="source-title">{{ item.label }}</p>
-                <p class="source-time">{{ formatClockPrimary(item.estimatedMs) }}</p>
+                <p class="source-time">
+                  <span>{{ formatClockPrimaryParts(item.estimatedMs).time }}</span>
+                  <template v-if="showMilliseconds">
+                    <span>.</span>
+                    <span class="ms-accent">{{ formatMillisecondFraction(item.estimatedMs) }}</span>
+                  </template>
+                </p>
                 <p class="source-subtime">
-                  {{ formatMillis(item.estimatedMs) }} · 偏差 {{ formatSignedMs(item.offsetMs) }}
+                  <span class="ms-accent">{{ formatMillis(item.estimatedMs) }}</span>
+                  <span> · 偏差 {{ formatSignedMs(item.offsetMs) }}</span>
                 </p>
               </div>
             </div>
@@ -717,7 +977,15 @@ onBeforeUnmount(() => {
             </div>
             <div>
               <span>获取时间</span>
-              <strong>{{ formatTimestampDetailed(item.source?.fetchedAtMs ?? null) }}</strong>
+              <strong>
+                <span>{{ formatTimestampDetailedParts(item.source?.fetchedAtMs ?? null).head }}</span>
+                <template v-if="formatTimestampDetailedParts(item.source?.fetchedAtMs ?? null).tail !== null">
+                  <span>.</span>
+                  <span class="ms-accent">
+                    {{ formatTimestampDetailedParts(item.source?.fetchedAtMs ?? null).tail }}
+                  </span>
+                </template>
+              </strong>
             </div>
           </div>
 

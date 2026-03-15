@@ -117,6 +117,10 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.ms-accent {
+  color: #ff8fb1;
+}
+
 .calibration-meta {
   margin-top: 10px;
   display: grid;
@@ -133,7 +137,7 @@ body {
 }
 
 .controls-grid-pinned {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .settings-toggle {

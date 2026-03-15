@@ -220,16 +220,16 @@ describe('App dashboard', () => {
 
     const defaultPrimary = wrapper.get('[data-testid="main-clock-primary"]').text();
 
-    await wrapper.get('[data-testid="clock-source-meituan"]').trigger('click');
+    await wrapper.get('[data-testid="clock-source-suning"]').trigger('click');
     await settleUi();
-    const meituanPrimary = wrapper.get('[data-testid="main-clock-primary"]').text();
+    const suningPrimary = wrapper.get('[data-testid="main-clock-primary"]').text();
 
     await wrapper.get('[data-testid="clock-source-reference"]').trigger('click');
     await settleUi();
     const restoredPrimary = wrapper.get('[data-testid="main-clock-primary"]').text();
 
-    expect(meituanPrimary).not.toBe(defaultPrimary);
-    expect(restoredPrimary).toBe(defaultPrimary);
+    expect(suningPrimary).not.toBe(defaultPrimary);
+    expect(restoredPrimary).not.toBe(suningPrimary);
   });
 
   it('recalibrates when tab becomes visible', async () => {
