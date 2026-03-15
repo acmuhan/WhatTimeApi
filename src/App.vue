@@ -16,7 +16,7 @@ const SOURCE_META: Record<SourceKey, { label: string; logo: string }> = {
   suning: { label: 'Suning', logo: 'S' }
 };
 
-const DISPLAY_TICK_MS = 250;
+const DISPLAY_TICK_MS = 100;
 const MAX_ERROR_LOGS = 12;
 const MIN_INTERVAL_SEC = 10;
 const MAX_INTERVAL_SEC = 120;
@@ -43,6 +43,7 @@ type SourceCard = {
 const aggregate = ref<AggregateResponse | null>(null);
 const loading = ref(false);
 const autoCalibration = ref(true);
+const showMilliseconds = ref(true);
 const calibrationIntervalSec = ref<number>(10);
 const groupFilter = ref<GroupFilter>('all');
 const recentErrors = ref<string[]>([]);
@@ -406,13 +407,19 @@ function sourceStatusClass(status: TimeSourceData['status']) {
 
 function formatClockPrimary(ms: number | null): string {
   if (ms === null) {
-    return '--:--:--';
+    return showMilliseconds.value ? '--:--:--.--' : '--:--:--';
   }
 
-  return new Date(ms).toLocaleTimeString('zh-CN', {
+  const time = new Date(ms).toLocaleTimeString('zh-CN', {
     hour12: false,
     timeZone: 'Asia/Shanghai'
   });
+  if (!showMilliseconds.value) {
+    return time;
+  }
+
+  const centiseconds = String(Math.floor((Math.abs(Math.trunc(ms)) % 1000) / 10)).padStart(2, '0');
+  return `${time}.${centiseconds}`;
 }
 
 function formatMillis(ms: number | null): string {
@@ -620,6 +627,21 @@ onBeforeUnmount(() => {
               @click="setGroupFilter('error')"
             >
               ERROR
+            </button>
+          </div>
+        </div>
+
+        <div class="control-card">
+          <p class="control-title">Time display</p>
+          <div class="action-row">
+            <button
+              type="button"
+              class="pill-btn"
+              :class="showMilliseconds ? 'is-active' : ''"
+              data-testid="millis-toggle"
+              @click="showMilliseconds = !showMilliseconds"
+            >
+              {{ showMilliseconds ? 'Milliseconds: ON' : 'Milliseconds: OFF' }}
             </button>
           </div>
         </div>
