@@ -49,6 +49,7 @@ const aggregate = ref<AggregateResponse | null>(null);
 const loading = ref(false);
 const autoCalibration = ref(true);
 const showMilliseconds = ref(true);
+const mobileSettingsExpanded = ref(false);
 const calibrationIntervalSec = ref<number>(10);
 const groupFilter = ref<GroupFilter>('all');
 const mainClockSource = ref<MainClockSource>('reference');
@@ -239,29 +240,6 @@ const nextCalibrationText = computed(() => {
 
   const ms = Math.max(0, calibrationIntervalMs.value - (Date.now() - calibrationAtMs.value));
   return `下次校准 ${formatCountdown(ms)}`;
-});
-
-const calibrationRemainingMs = computed(() => {
-  if (!autoCalibration.value || calibrationAtMs.value === null) {
-    return 0;
-  }
-
-  return Math.max(0, calibrationIntervalMs.value - (Date.now() - calibrationAtMs.value));
-});
-
-const calibrationProgress = computed(() => {
-  if (!autoCalibration.value || calibrationAtMs.value === null) {
-    return 0;
-  }
-
-  const elapsed = calibrationIntervalMs.value - calibrationRemainingMs.value;
-  return Math.max(0, Math.min(100, (elapsed / calibrationIntervalMs.value) * 100));
-});
-
-const ringStyle = computed(() => {
-  return {
-    '--progress': `${calibrationProgress.value}`
-  } as Record<string, string>;
 });
 
 const latencyRanking = computed(() => {
@@ -562,18 +540,9 @@ onBeforeUnmount(() => {
             <span data-testid="next-calibration">{{ nextCalibrationText }}</span>
           </div>
         </div>
-
-        <div class="ring-wrap">
-          <div class="ring-progress" :style="ringStyle" aria-hidden="true">
-            <div class="ring-inner">
-              <p>周期</p>
-              <strong>{{ Math.round(calibrationProgress) }}%</strong>
-            </div>
-          </div>
-        </div>
       </div>
 
-      <div class="controls-grid">
+      <div class="controls-grid controls-grid-pinned">
         <div class="control-card">
           <p class="control-title">校准</p>
           <div class="action-row">
@@ -598,6 +567,34 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
+        <div class="control-card">
+          <p class="control-title">主时钟源</p>
+          <div class="group-row">
+            <button
+              v-for="option in MAIN_CLOCK_SOURCE_OPTIONS"
+              :key="option.key"
+              type="button"
+              class="group-btn"
+              :class="mainClockSource === option.key ? 'is-active' : ''"
+              :data-testid="`clock-source-${option.key}`"
+              @click="setMainClockSource(option.key)"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        class="settings-toggle"
+        data-testid="settings-toggle"
+        @click="mobileSettingsExpanded = !mobileSettingsExpanded"
+      >
+        {{ mobileSettingsExpanded ? '收起设置' : '更多设置' }}
+      </button>
+
+      <div class="controls-grid controls-grid-extra" :class="{ 'is-expanded': mobileSettingsExpanded }">
         <div class="control-card">
           <p class="control-title">刷新间隔 (最小10秒)</p>
           <div class="interval-box">
@@ -676,39 +673,10 @@ onBeforeUnmount(() => {
             </button>
           </div>
         </div>
-
-        <div class="control-card">
-          <p class="control-title">主时钟源</p>
-          <div class="group-row">
-            <button
-              v-for="option in MAIN_CLOCK_SOURCE_OPTIONS"
-              :key="option.key"
-              type="button"
-              class="group-btn"
-              :class="mainClockSource === option.key ? 'is-active' : ''"
-              :data-testid="`clock-source-${option.key}`"
-              @click="setMainClockSource(option.key)"
-            >
-              {{ option.label }}
-            </button>
-          </div>
-        </div>
       </div>
     </section>
 
     <section class="summary-grid">
-      <article class="panel summary-card">
-        <p>正常</p>
-        <strong>{{ summaryStats.okCount }}</strong>
-      </article>
-      <article class="panel summary-card">
-        <p>备用</p>
-        <strong>{{ summaryStats.staleCount }}</strong>
-      </article>
-      <article class="panel summary-card">
-        <p>错误</p>
-        <strong>{{ summaryStats.errorCount }}</strong>
-      </article>
       <article class="panel summary-card">
         <p>平均延迟</p>
         <strong>{{ formatLatency(summaryStats.avgLatency) }}</strong>

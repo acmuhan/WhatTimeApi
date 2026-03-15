@@ -77,7 +77,7 @@ describe('App dashboard', () => {
     await settleUi();
 
     const titles = wrapper.findAll('[data-testid="source-title"]').map((node) => node.text());
-    expect(titles).toEqual(['Taobao', 'Meituan', 'Suning']);
+    expect(titles).toEqual(['淘宝', '美团', '苏宁']);
   });
 
   it('supports manual calibration button', async () => {
@@ -108,9 +108,9 @@ describe('App dashboard', () => {
     await settleUi();
 
     const ranking = wrapper.findAll('[data-testid="latency-item"]').map((node) => node.text());
-    expect(ranking[0]).toContain('Meituan');
-    expect(ranking[1]).toContain('Suning');
-    expect(ranking[2]).toContain('Taobao');
+    expect(ranking[0]).toContain('美团');
+    expect(ranking[1]).toContain('苏宁');
+    expect(ranking[2]).toContain('淘宝');
   });
 
   it('runs auto calibration every 10 seconds and can be disabled', async () => {
@@ -182,7 +182,7 @@ describe('App dashboard', () => {
     await settleUi();
 
     const titles = wrapper.findAll('[data-testid="source-title"]').map((node) => node.text());
-    expect(titles).toEqual(['Meituan']);
+    expect(titles).toEqual(['美团']);
   });
 
   it('keeps clock moving locally between calibrations', async () => {
