@@ -9,11 +9,15 @@ import {
 } from './clock-engine';
 import type { AggregateResponse, SourceKey, SourceStatus, TimeSourceData } from './types';
 
+const TAOBAO_ICON = new URL('../icons/tb.ico', import.meta.url).href;
+const MEITUAN_ICON = new URL('../icons/favicon-mt.ico', import.meta.url).href;
+const SUNING_ICON = new URL('../icons/suning.ico', import.meta.url).href;
+
 const SOURCE_ORDER: SourceKey[] = ['taobao', 'meituan', 'suning'];
-const SOURCE_META: Record<SourceKey, { label: string; logo: string }> = {
-  taobao: { label: 'Taobao', logo: 'T' },
-  meituan: { label: 'Meituan', logo: 'M' },
-  suning: { label: 'Suning', logo: 'S' }
+const SOURCE_META: Record<SourceKey, { label: string; icon: string }> = {
+  taobao: { label: 'Taobao', icon: TAOBAO_ICON },
+  meituan: { label: 'Meituan', icon: MEITUAN_ICON },
+  suning: { label: 'Suning', icon: SUNING_ICON }
 };
 
 const DISPLAY_TICK_MS = 100;
@@ -32,7 +36,7 @@ type GroupKey = SourceStatus;
 type SourceCard = {
   sourceKey: SourceKey;
   label: string;
-  logo: string;
+  icon: string;
   source: TimeSourceData | null;
   baseline: ClockBaseline | null;
   estimatedMs: number | null;
@@ -71,7 +75,7 @@ const sourceCards = computed<SourceCard[]>(() => {
     return {
       sourceKey,
       label: SOURCE_META[sourceKey].label,
-      logo: SOURCE_META[sourceKey].logo,
+      icon: SOURCE_META[sourceKey].icon,
       source,
       baseline,
       estimatedMs,
@@ -677,7 +681,9 @@ onBeforeUnmount(() => {
         <article v-for="item in group.cards" :key="item.sourceKey" class="panel source-card">
           <header class="source-header">
             <div class="source-brand">
-              <div class="brand-icon" :class="`brand-${item.sourceKey}`" aria-hidden="true">{{ item.logo }}</div>
+              <div class="brand-icon">
+                <img class="brand-icon-image" :src="item.icon" :alt="`${item.label} icon`" loading="lazy" />
+              </div>
               <div>
                 <p class="source-name" data-testid="source-title">{{ item.label }}</p>
                 <p class="source-time">{{ formatClockPrimary(item.estimatedMs) }}</p>
