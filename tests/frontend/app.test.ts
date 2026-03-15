@@ -77,7 +77,7 @@ describe('App dashboard', () => {
     await settleUi();
 
     const titles = wrapper.findAll('[data-testid="source-title"]').map((node) => node.text());
-    expect(titles).toEqual(['淘宝', '美团', '苏宁']);
+    expect(titles).toEqual(['Taobao', 'Meituan', 'Suning']);
   });
 
   it('supports manual calibration button', async () => {
@@ -108,9 +108,9 @@ describe('App dashboard', () => {
     await settleUi();
 
     const ranking = wrapper.findAll('[data-testid="latency-item"]').map((node) => node.text());
-    expect(ranking[0]).toContain('美团');
-    expect(ranking[1]).toContain('苏宁');
-    expect(ranking[2]).toContain('淘宝');
+    expect(ranking[0]).toContain('Meituan');
+    expect(ranking[1]).toContain('Suning');
+    expect(ranking[2]).toContain('Taobao');
   });
 
   it('runs auto calibration every 10 seconds and can be disabled', async () => {
@@ -126,12 +126,63 @@ describe('App dashboard', () => {
     await settleUi();
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
-    await wrapper.get('[data-testid="auto-calibration-toggle"]').setValue(false);
+    await wrapper.get('[data-testid="auto-calibration-toggle"]').trigger('click');
     await nextTick();
 
     await vi.advanceTimersByTimeAsync(20_000);
     await settleUi();
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('supports custom interval and enforces min 10s', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(createPayload()), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const wrapper = mount(App);
+    await settleUi();
+
+    await wrapper.get('[data-testid="interval-dec"]').trigger('click');
+    await settleUi();
+    expect(wrapper.get('[data-testid="interval-value"]').text()).toBe('10s');
+
+    await wrapper.get('[data-testid="preset-15"]').trigger('click');
+    await settleUi();
+    expect(wrapper.get('[data-testid="interval-value"]').text()).toBe('15s');
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    await settleUi();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    await settleUi();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('can filter by stale group', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify(
+            createPayload({
+              taobaoStatus: 'ok',
+              meituanStatus: 'stale',
+              suningStatus: 'error'
+            })
+          ),
+          { status: 200 }
+        )
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const wrapper = mount(App);
+    await settleUi();
+
+    await wrapper.get('[data-testid="filter-stale"]').trigger('click');
+    await settleUi();
+
+    const titles = wrapper.findAll('[data-testid="source-title"]').map((node) => node.text());
+    expect(titles).toEqual(['Meituan']);
   });
 
   it('keeps clock moving locally between calibrations', async () => {

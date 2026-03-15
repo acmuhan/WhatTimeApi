@@ -7,27 +7,44 @@ import {
   isSmoothActive,
   type ClockBaseline
 } from './clock-engine';
-import type { AggregateResponse, SourceKey, TimeSourceData } from './types';
+import type { AggregateResponse, SourceKey, SourceStatus, TimeSourceData } from './types';
 
 const SOURCE_ORDER: SourceKey[] = ['taobao', 'meituan', 'suning'];
-
 const SOURCE_META: Record<SourceKey, { label: string; logo: string }> = {
-  taobao: { label: '淘宝', logo: 'T' },
-  meituan: { label: '美团', logo: 'M' },
-  suning: { label: '苏宁', logo: 'S' }
+  taobao: { label: 'Taobao', logo: 'T' },
+  meituan: { label: 'Meituan', logo: 'M' },
+  suning: { label: 'Suning', logo: 'S' }
 };
 
 const DISPLAY_TICK_MS = 250;
-const CALIBRATION_INTERVAL_MS = 10_000;
-const MAX_ERROR_LOGS = 10;
+const MAX_ERROR_LOGS = 12;
+const MIN_INTERVAL_SEC = 10;
+const MAX_INTERVAL_SEC = 120;
+const INTERVAL_STEP_SEC = 5;
+const INTERVAL_PRESETS = [10, 15, 20, 30, 60] as const;
 const CALIBRATION_CONFIG = {
   driftThresholdMs: 120,
   smoothDurationMs: 700
 };
 
+type GroupFilter = 'all' | SourceStatus;
+type GroupKey = SourceStatus;
+type SourceCard = {
+  sourceKey: SourceKey;
+  label: string;
+  logo: string;
+  source: TimeSourceData | null;
+  baseline: ClockBaseline | null;
+  estimatedMs: number | null;
+  offsetMs: number | null;
+  status: SourceStatus;
+};
+
 const aggregate = ref<AggregateResponse | null>(null);
 const loading = ref(false);
 const autoCalibration = ref(true);
+const calibrationIntervalSec = ref<number>(10);
+const groupFilter = ref<GroupFilter>('all');
 const recentErrors = ref<string[]>([]);
 const renderPerfNow = ref(getPerfNow());
 const calibrationAtMs = ref<number | null>(null);
@@ -37,7 +54,9 @@ let displayTimer: number | null = null;
 let autoCalibrationTimer: number | null = null;
 let inFlightCalibration: Promise<void> | null = null;
 
-const sourceCards = computed(() => {
+const calibrationIntervalMs = computed(() => calibrationIntervalSec.value * 1000);
+
+const sourceCards = computed<SourceCard[]>(() => {
   return SOURCE_ORDER.map((sourceKey) => {
     const source = aggregate.value?.sources[sourceKey] ?? null;
     const baseline = clockBaselines.value[sourceKey];
@@ -55,9 +74,62 @@ const sourceCards = computed(() => {
       source,
       baseline,
       estimatedMs,
-      offsetMs
+      offsetMs,
+      status: source?.status ?? 'error'
     };
   });
+});
+
+const groupedCards = computed<Record<SourceStatus, SourceCard[]>>(() => {
+  const groups: Record<SourceStatus, SourceCard[]> = {
+    ok: [],
+    stale: [],
+    error: []
+  };
+
+  for (const card of sourceCards.value) {
+    groups[card.status].push(card);
+  }
+
+  return groups;
+});
+
+const visibleGroups = computed(() => {
+  const allGroups = [
+    { key: 'ok' as GroupKey, title: 'Healthy Sources', cards: groupedCards.value.ok },
+    { key: 'stale' as GroupKey, title: 'Fallback Sources', cards: groupedCards.value.stale },
+    { key: 'error' as GroupKey, title: 'Error Sources', cards: groupedCards.value.error }
+  ];
+
+  if (groupFilter.value === 'all') {
+    return allGroups;
+  }
+
+  return allGroups.filter((group) => group.key === groupFilter.value);
+});
+
+const summaryStats = computed(() => {
+  const sources = sourceCards.value.filter((item) => item.source !== null);
+  const okCount = groupedCards.value.ok.length;
+  const staleCount = groupedCards.value.stale.length;
+  const errorCount = groupedCards.value.error.length;
+
+  let latencyTotal = 0;
+  let latencyCount = 0;
+
+  for (const item of sources) {
+    if (item.source?.latencyMs !== null && item.source?.latencyMs !== undefined) {
+      latencyTotal += item.source.latencyMs;
+      latencyCount += 1;
+    }
+  }
+
+  return {
+    okCount,
+    staleCount,
+    errorCount,
+    avgLatency: latencyCount > 0 ? Math.round(latencyTotal / latencyCount) : null
+  };
 });
 
 const referenceTimeMs = computed(() => {
@@ -86,16 +158,14 @@ const referenceOffsetMs = computed(() => {
   return Math.trunc(referenceTimeMs.value - Date.now());
 });
 
-const clockPrimary = computed(() => {
-  return formatClockPrimary(referenceTimeMs.value);
-});
+const clockPrimary = computed(() => formatClockPrimary(referenceTimeMs.value));
 
 const clockSecondary = computed(() => {
   if (referenceTimeMs.value === null) {
-    return '-- ms · 本地偏移 --';
+    return '-- ms · Local Offset --';
   }
 
-  return `${formatMillis(referenceTimeMs.value)} · 本地偏移 ${formatSignedMs(referenceOffsetMs.value)}`;
+  return `${formatMillis(referenceTimeMs.value)} · Local Offset ${formatSignedMs(referenceOffsetMs.value)}`;
 });
 
 const calibrationMode = computed<'calibrating' | 'smooth' | 'locked'>(() => {
@@ -107,45 +177,48 @@ const calibrationMode = computed<'calibrating' | 'smooth' | 'locked'>(() => {
     if (!item.baseline) {
       return false;
     }
+
     return isSmoothActive(item.baseline, renderPerfNow.value);
   });
 
-  if (hasSmoothing) {
-    return 'smooth';
-  }
-
-  return 'locked';
+  return hasSmoothing ? 'smooth' : 'locked';
 });
 
 const calibrationModeLabel = computed(() => {
   if (calibrationMode.value === 'calibrating') {
-    return '校准中';
+    return 'Calibrating';
   }
+
   if (calibrationMode.value === 'smooth') {
-    return '平滑纠偏';
+    return 'Smooth Correction';
   }
-  return '稳定';
+
+  return 'Locked';
 });
 
-const calibrationModeClass = computed(() => {
-  return `mode-${calibrationMode.value}`;
-});
+const calibrationModeClass = computed(() => `mode-${calibrationMode.value}`);
 
-const generatedAtText = computed(() => {
-  return formatTimestampDetailed(aggregate.value?.generatedAtMs ?? null);
-});
+const generatedAtText = computed(() => formatTimestampDetailed(aggregate.value?.generatedAtMs ?? null));
 
 const nextCalibrationText = computed(() => {
   if (!autoCalibration.value) {
-    return '自动校准已关闭';
+    return 'Auto calibration is off';
   }
 
   if (calibrationAtMs.value === null) {
-    return '等待首次校准';
+    return 'Waiting for first calibration';
   }
 
-  const ms = Math.max(0, CALIBRATION_INTERVAL_MS - (Date.now() - calibrationAtMs.value));
-  return `下次校准 ${formatCountdown(ms)}`;
+  const ms = Math.max(0, calibrationIntervalMs.value - (Date.now() - calibrationAtMs.value));
+  return `Next calibration in ${formatCountdown(ms)}`;
+});
+
+const calibrationRemainingMs = computed(() => {
+  if (!autoCalibration.value || calibrationAtMs.value === null) {
+    return 0;
+  }
+
+  return Math.max(0, calibrationIntervalMs.value - (Date.now() - calibrationAtMs.value));
 });
 
 const calibrationProgress = computed(() => {
@@ -153,9 +226,14 @@ const calibrationProgress = computed(() => {
     return 0;
   }
 
-  const elapsed = Date.now() - calibrationAtMs.value;
-  const raw = (elapsed / CALIBRATION_INTERVAL_MS) * 100;
-  return Math.max(0, Math.min(100, raw));
+  const elapsed = calibrationIntervalMs.value - calibrationRemainingMs.value;
+  return Math.max(0, Math.min(100, (elapsed / calibrationIntervalMs.value) * 100));
+});
+
+const ringStyle = computed(() => {
+  return {
+    '--progress': `${calibrationProgress.value}`
+  } as Record<string, string>;
 });
 
 const latencyRanking = computed(() => {
@@ -169,19 +247,12 @@ const latencyRanking = computed(() => {
     });
 });
 
-function sourceStatusLabel(status: TimeSourceData['status']) {
-  if (status === 'ok') {
-    return '正常';
-  }
-  if (status === 'stale') {
-    return '过期回退';
-  }
-  return '失败';
-}
-
-function sourceStatusClass(status: TimeSourceData['status']) {
-  return `status-${status}`;
-}
+const offsetRanking = computed(() => {
+  return sourceCards.value
+    .filter((item) => item.offsetMs !== null)
+    .slice()
+    .sort((a, b) => Math.abs(b.offsetMs ?? 0) - Math.abs(a.offsetMs ?? 0));
+});
 
 async function calibrateNow(reason: 'manual' | 'auto' | 'initial' | 'visible' = 'manual') {
   if (inFlightCalibration) {
@@ -193,9 +264,7 @@ async function calibrateNow(reason: 'manual' | 'auto' | 'initial' | 'visible' = 
     loading.value = true;
     try {
       const response = await fetch('/api/time/aggregate', {
-        headers: {
-          Accept: 'application/json'
-        }
+        headers: { Accept: 'application/json' }
       });
 
       if (!response.ok) {
@@ -207,8 +276,8 @@ async function calibrateNow(reason: 'manual' | 'auto' | 'initial' | 'visible' = 
       applyCalibration(payload);
       collectSourceErrors(payload, reason);
     } catch (error) {
-      const message = error instanceof Error ? error.message : '请求失败';
-      pushError(`校准失败: ${message}`);
+      const message = error instanceof Error ? error.message : 'request_failed';
+      pushError(`Calibration failed: ${message}`);
     } finally {
       loading.value = false;
     }
@@ -253,8 +322,8 @@ function collectSourceErrors(payload: AggregateResponse, reason: string) {
       continue;
     }
 
-    const detail = source.error ?? '未知错误';
-    pushError(`${SOURCE_META[sourceKey].label}(${reason}): ${detail}`);
+    const detail = source.error ?? 'unknown_error';
+    pushError(`${SOURCE_META[sourceKey].label} (${reason}): ${detail}`);
   }
 }
 
@@ -287,7 +356,7 @@ function startAutoCalibrationTimer() {
 
   autoCalibrationTimer = window.setInterval(() => {
     void calibrateNow('auto');
-  }, CALIBRATION_INTERVAL_MS);
+  }, calibrationIntervalMs.value);
 }
 
 function stopAutoCalibrationTimer() {
@@ -303,38 +372,36 @@ function handleVisibilityChange() {
   }
 }
 
-watch(autoCalibration, (enabled) => {
-  if (enabled) {
-    startAutoCalibrationTimer();
-    return;
+function setCalibrationIntervalSec(nextSec: number) {
+  calibrationIntervalSec.value = clamp(nextSec, MIN_INTERVAL_SEC, MAX_INTERVAL_SEC);
+}
+
+function decreaseInterval() {
+  setCalibrationIntervalSec(calibrationIntervalSec.value - INTERVAL_STEP_SEC);
+}
+
+function increaseInterval() {
+  setCalibrationIntervalSec(calibrationIntervalSec.value + INTERVAL_STEP_SEC);
+}
+
+function setGroupFilter(next: GroupFilter) {
+  groupFilter.value = next;
+}
+
+function sourceStatusLabel(status: TimeSourceData['status']) {
+  if (status === 'ok') {
+    return 'OK';
   }
 
-  stopAutoCalibrationTimer();
-});
-
-onMounted(() => {
-  startDisplayTimer();
-  void calibrateNow('initial');
-
-  if (autoCalibration.value) {
-    startAutoCalibrationTimer();
+  if (status === 'stale') {
+    return 'STALE';
   }
 
-  document.addEventListener('visibilitychange', handleVisibilityChange);
-});
+  return 'ERROR';
+}
 
-onBeforeUnmount(() => {
-  stopDisplayTimer();
-  stopAutoCalibrationTimer();
-  document.removeEventListener('visibilitychange', handleVisibilityChange);
-});
-
-function createEmptyBaselines(): Record<SourceKey, ClockBaseline | null> {
-  return {
-    taobao: null,
-    meituan: null,
-    suning: null
-  };
+function sourceStatusClass(status: TimeSourceData['status']) {
+  return `status-${status}`;
 }
 
 function formatClockPrimary(ms: number | null): string {
@@ -392,105 +459,258 @@ function formatCountdown(ms: number): string {
   const sec = Math.max(0, Math.ceil(ms / 1000));
   return `${sec}s`;
 }
+
+function createEmptyBaselines(): Record<SourceKey, ClockBaseline | null> {
+  return {
+    taobao: null,
+    meituan: null,
+    suning: null
+  };
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+watch(autoCalibration, (enabled) => {
+  if (enabled) {
+    startAutoCalibrationTimer();
+    return;
+  }
+
+  stopAutoCalibrationTimer();
+});
+
+watch(calibrationIntervalSec, () => {
+  if (autoCalibration.value) {
+    startAutoCalibrationTimer();
+  }
+});
+
+onMounted(() => {
+  startDisplayTimer();
+  void calibrateNow('initial');
+
+  if (autoCalibration.value) {
+    startAutoCalibrationTimer();
+  }
+
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+});
+
+onBeforeUnmount(() => {
+  stopDisplayTimer();
+  stopAutoCalibrationTimer();
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
+});
 </script>
 
 <template>
   <main class="time-layout">
     <section class="panel hero-panel">
       <div class="hero-top">
-        <p class="kicker">Time Command Center</p>
+        <p class="kicker">OpenRealm Time Console</p>
         <span class="mode-pill" :class="calibrationModeClass" data-testid="calibration-mode">
           {{ calibrationModeLabel }}
         </span>
       </div>
 
-      <div class="main-clock-wrap">
-        <p class="main-clock" data-testid="main-clock-primary">{{ clockPrimary }}</p>
-        <p class="main-clock-sub" data-testid="main-clock-secondary">{{ clockSecondary }}</p>
+      <div class="hero-clock-zone">
+        <div class="clock-text-wrap">
+          <p class="main-clock" data-testid="main-clock-primary">{{ clockPrimary }}</p>
+          <p class="main-clock-sub" data-testid="main-clock-secondary">{{ clockSecondary }}</p>
+          <div class="calibration-meta">
+            <span>Last calibration: {{ generatedAtText }}</span>
+            <span data-testid="next-calibration">{{ nextCalibrationText }}</span>
+          </div>
+        </div>
+
+        <div class="ring-wrap">
+          <div class="ring-progress" :style="ringStyle" aria-hidden="true">
+            <div class="ring-inner">
+              <p>Cycle</p>
+              <strong>{{ Math.round(calibrationProgress) }}%</strong>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="hero-controls">
-        <label class="toggle-switch">
-          <input v-model="autoCalibration" type="checkbox" data-testid="auto-calibration-toggle" />
-          <span>每 10 秒自动校准</span>
-        </label>
+      <div class="controls-grid">
+        <div class="control-card">
+          <p class="control-title">Calibration</p>
+          <div class="action-row">
+            <button
+              type="button"
+              class="pill-btn"
+              :class="autoCalibration ? 'is-active' : ''"
+              data-testid="auto-calibration-toggle"
+              @click="autoCalibration = !autoCalibration"
+            >
+              {{ autoCalibration ? 'Auto: ON' : 'Auto: OFF' }}
+            </button>
+            <button
+              type="button"
+              class="pill-btn"
+              :disabled="loading"
+              data-testid="manual-calibrate"
+              @click="calibrateNow('manual')"
+            >
+              {{ loading ? 'Calibrating...' : 'Calibrate Now' }}
+            </button>
+          </div>
+        </div>
 
-        <button
-          class="action-btn"
-          type="button"
-          :disabled="loading"
-          data-testid="manual-calibrate"
-          @click="calibrateNow('manual')"
-        >
-          {{ loading ? '校准中...' : '立即校准' }}
-        </button>
-      </div>
+        <div class="control-card">
+          <p class="control-title">Refresh interval (min 10s)</p>
+          <div class="interval-box">
+            <button type="button" class="icon-btn" data-testid="interval-dec" @click="decreaseInterval">-</button>
+            <span class="interval-value" data-testid="interval-value">{{ calibrationIntervalSec }}s</span>
+            <button type="button" class="icon-btn" data-testid="interval-inc" @click="increaseInterval">+</button>
+          </div>
+          <div class="preset-row">
+            <button
+              v-for="preset in INTERVAL_PRESETS"
+              :key="preset"
+              type="button"
+              class="preset-btn"
+              :class="calibrationIntervalSec === preset ? 'is-active' : ''"
+              :data-testid="`preset-${preset}`"
+              @click="setCalibrationIntervalSec(preset)"
+            >
+              {{ preset }}s
+            </button>
+          </div>
+        </div>
 
-      <div class="calibration-meta">
-        <span>最近校准: {{ generatedAtText }}</span>
-        <span data-testid="next-calibration">{{ nextCalibrationText }}</span>
-      </div>
-
-      <div class="calibration-strip">
-        <div class="calibration-progress" :style="{ width: `${calibrationProgress}%` }"></div>
+        <div class="control-card">
+          <p class="control-title">Group filter</p>
+          <div class="group-row">
+            <button
+              type="button"
+              class="group-btn"
+              :class="groupFilter === 'all' ? 'is-active' : ''"
+              data-testid="filter-all"
+              @click="setGroupFilter('all')"
+            >
+              All
+            </button>
+            <button
+              type="button"
+              class="group-btn"
+              :class="groupFilter === 'ok' ? 'is-active' : ''"
+              data-testid="filter-ok"
+              @click="setGroupFilter('ok')"
+            >
+              OK
+            </button>
+            <button
+              type="button"
+              class="group-btn"
+              :class="groupFilter === 'stale' ? 'is-active' : ''"
+              data-testid="filter-stale"
+              @click="setGroupFilter('stale')"
+            >
+              STALE
+            </button>
+            <button
+              type="button"
+              class="group-btn"
+              :class="groupFilter === 'error' ? 'is-active' : ''"
+              data-testid="filter-error"
+              @click="setGroupFilter('error')"
+            >
+              ERROR
+            </button>
+          </div>
+        </div>
       </div>
     </section>
 
-    <section class="source-grid">
-      <article v-for="item in sourceCards" :key="item.sourceKey" class="panel source-card">
-        <header class="source-header">
-          <div class="source-brand">
-            <div class="brand-icon" :class="`brand-${item.sourceKey}`" aria-hidden="true">{{ item.logo }}</div>
-            <div>
-              <p class="source-name" data-testid="source-title">{{ item.label }}</p>
-              <p class="source-time">{{ formatClockPrimary(item.estimatedMs) }}</p>
-              <p class="source-subtime">
-                {{ formatMillis(item.estimatedMs) }} · 偏移 {{ formatSignedMs(item.offsetMs) }}
-              </p>
-            </div>
-          </div>
-
-          <span
-            v-if="item.source"
-            class="status-pill"
-            :class="sourceStatusClass(item.source.status)"
-          >
-            {{ sourceStatusLabel(item.source.status) }}
-          </span>
-          <span v-else class="status-pill status-error">等待数据</span>
-        </header>
-
-        <dl class="source-metrics">
-          <div>
-            <dt>请求耗时</dt>
-            <dd>{{ formatLatency(item.source?.latencyMs ?? null) }}</dd>
-          </div>
-          <div>
-            <dt>最近获取</dt>
-            <dd>{{ formatTimestampDetailed(item.source?.fetchedAtMs ?? null) }}</dd>
-          </div>
-        </dl>
-
-        <p v-if="item.source?.error" class="error-text">{{ item.source.error }}</p>
+    <section class="summary-grid">
+      <article class="panel summary-card">
+        <p>Healthy</p>
+        <strong>{{ summaryStats.okCount }}</strong>
+      </article>
+      <article class="panel summary-card">
+        <p>Fallback</p>
+        <strong>{{ summaryStats.staleCount }}</strong>
+      </article>
+      <article class="panel summary-card">
+        <p>Error</p>
+        <strong>{{ summaryStats.errorCount }}</strong>
+      </article>
+      <article class="panel summary-card">
+        <p>Avg Latency</p>
+        <strong>{{ formatLatency(summaryStats.avgLatency) }}</strong>
       </article>
     </section>
 
-    <section class="panel compact-panel">
-      <h2>响应耗时排行</h2>
-      <ol>
-        <li v-for="entry in latencyRanking" :key="entry.sourceKey" data-testid="latency-item">
-          <span>{{ entry.label }}</span>
-          <strong>{{ formatLatency(entry.source?.latencyMs ?? null) }}</strong>
-        </li>
-      </ol>
+    <section v-for="group in visibleGroups" :key="group.key" class="group-section">
+      <header class="group-head">
+        <h2>{{ group.title }}</h2>
+        <span class="group-count">{{ group.cards.length }} source(s)</span>
+      </header>
+
+      <div v-if="group.cards.length > 0" class="source-grid">
+        <article v-for="item in group.cards" :key="item.sourceKey" class="panel source-card">
+          <header class="source-header">
+            <div class="source-brand">
+              <div class="brand-icon" :class="`brand-${item.sourceKey}`" aria-hidden="true">{{ item.logo }}</div>
+              <div>
+                <p class="source-name" data-testid="source-title">{{ item.label }}</p>
+                <p class="source-time">{{ formatClockPrimary(item.estimatedMs) }}</p>
+                <p class="source-subtime">
+                  {{ formatMillis(item.estimatedMs) }} · Offset {{ formatSignedMs(item.offsetMs) }}
+                </p>
+              </div>
+            </div>
+
+            <span v-if="item.source" class="status-pill" :class="sourceStatusClass(item.source.status)">
+              {{ sourceStatusLabel(item.source.status) }}
+            </span>
+          </header>
+
+          <div class="source-metrics">
+            <div>
+              <span>Latency</span>
+              <strong>{{ formatLatency(item.source?.latencyMs ?? null) }}</strong>
+            </div>
+            <div>
+              <span>Fetched At</span>
+              <strong>{{ formatTimestampDetailed(item.source?.fetchedAtMs ?? null) }}</strong>
+            </div>
+          </div>
+
+          <p v-if="item.source?.error" class="error-text">{{ item.source.error }}</p>
+        </article>
+      </div>
+
+      <article v-else class="panel empty-group">No source in this group</article>
     </section>
 
-    <section class="panel compact-panel">
-      <h2>最近错误提示</h2>
-      <p v-if="recentErrors.length === 0" class="quiet">暂无错误</p>
-      <ul v-else class="error-list">
-        <li v-for="message in recentErrors" :key="message">{{ message }}</li>
-      </ul>
+    <section class="panel dual-panel">
+      <article class="dual-card">
+        <h3>Latency ranking</h3>
+        <div v-for="entry in latencyRanking" :key="entry.sourceKey" class="rank-row" data-testid="latency-item">
+          <span>{{ entry.label }}</span>
+          <strong>{{ formatLatency(entry.source?.latencyMs ?? null) }}</strong>
+        </div>
+      </article>
+      <article class="dual-card">
+        <h3>Offset ranking</h3>
+        <div v-for="entry in offsetRanking" :key="`offset-${entry.sourceKey}`" class="rank-row">
+          <span>{{ entry.label }}</span>
+          <strong>{{ formatSignedMs(entry.offsetMs) }}</strong>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel error-panel">
+      <h3>Recent errors</h3>
+      <p v-if="recentErrors.length === 0" class="quiet">No recent errors</p>
+      <div v-else class="error-list">
+        <p v-for="message in recentErrors" :key="message">{{ message }}</p>
+      </div>
     </section>
   </main>
 </template>
