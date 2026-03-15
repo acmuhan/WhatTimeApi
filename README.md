@@ -65,6 +65,23 @@ npm test
 - `TIME_REQUEST_TIMEOUT_MS`: 单请求超时，默认 `1200`
 - `TZ`: 时区，建议 `Asia/Shanghai`
 
+
+## Vercel 部署
+本仓库已适配 Vercel：
+- 前端由 Vite 构建并部署为静态站点。
+- `api/time/aggregate.ts` 作为 Vercel Serverless Function 提供 `/api/time/aggregate`。
+- `vercel.json` 已添加 SPA 路由重写，确保前端路由刷新可用。
+
+部署步骤：
+1. 在 Vercel 导入仓库。
+2. Framework Preset 选择 **Vite**（通常会自动识别）。
+3. 保持默认 Build Command：`npm run build:client`（或 `vite build`）。
+4. 部署后访问：
+   - 页面：`/`
+   - 接口：`/api/time/aggregate`
+
+> 说明：本地 `npm run dev` 仍走 Node 服务 + Vite 代理；Vercel 线上使用 `api/` Serverless 函数。
+
 ## 阿里云 FC 部署
 1. 构建项目：`npm run build`
 2. 安装并登录 Serverless Devs (`s`)。

@@ -232,6 +232,61 @@ describe('App dashboard', () => {
     expect(restoredPrimary).not.toBe(suningPrimary);
   });
 
+
+  it('resets PiP state when video PiP is closed by system controls', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(createPayload()), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    Object.defineProperty(document, 'pictureInPictureEnabled', {
+      configurable: true,
+      value: true
+    });
+
+    Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+      configurable: true,
+      value: vi.fn(() => ({
+        createLinearGradient: () => ({ addColorStop: vi.fn() }),
+        fillRect: vi.fn(),
+        fillText: vi.fn(),
+        set fillStyle(_value: string) {},
+        set font(_value: string) {},
+        set textAlign(_value: CanvasTextAlign) {},
+        set textBaseline(_value: CanvasTextBaseline) {}
+      }))
+    });
+
+    Object.defineProperty(HTMLCanvasElement.prototype, 'captureStream', {
+      configurable: true,
+      value: vi.fn(
+        () =>
+          ({
+            getTracks: () => [{ stop: vi.fn() }]
+          }) as unknown as MediaStream
+      )
+    });
+
+    Object.defineProperty(HTMLVideoElement.prototype, 'requestPictureInPicture', {
+      configurable: true,
+      value: vi.fn().mockResolvedValue({} as PictureInPictureWindow)
+    });
+
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+
+    const wrapper = mount(App);
+    await settleUi();
+
+    await wrapper.get('[data-testid="pip-toggle"]').trigger('click');
+    await settleUi();
+    expect(wrapper.get('[data-testid="pip-toggle"]').text()).toContain('关闭');
+
+    const hiddenVideo = document.querySelector('video');
+    expect(hiddenVideo).not.toBeNull();
+    hiddenVideo?.dispatchEvent(new Event('leavepictureinpicture'));
+    await settleUi();
+
+    expect(wrapper.get('[data-testid="pip-toggle"]').text()).toContain('开启');
+  });
+
   it('recalibrates when tab becomes visible', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(createPayload()), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
