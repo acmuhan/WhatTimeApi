@@ -8,6 +8,7 @@ type DocumentPictureInPictureApi = {
 type PipVideo = HTMLVideoElement & {
   webkitSupportsPresentationMode?: (mode: string) => boolean;
   webkitSetPresentationMode?: (mode: string) => void;
+  webkitPresentationMode?: string;
 };
 
 export function usePictureInPictureClock(msRef: Ref<number | null>, pushError: (message: string) => void) {
@@ -25,6 +26,12 @@ export function usePictureInPictureClock(msRef: Ref<number | null>, pushError: (
   const hiddenCanvas = ref<HTMLCanvasElement | null>(null);
   const hiddenCtx = ref<CanvasRenderingContext2D | null>(null);
   const canvasTimer = ref<number | null>(null);
+  const videoPipListenerBound = ref(false);
+  const webkitPresentationModeHandler = ref<((event: Event) => void) | null>(null);
+
+  function setupSupportFlags() {
+    docApi.value = getDocumentPictureInPictureApi();
+    videoPipSupported.value = 'pictureInPictureEnabled' in document || 'webkitSupportsPresentationMode' in HTMLVideoElement.prototype;
 
   function setupSupportFlags() {
     docApi.value = getDocumentPictureInPictureApi();
@@ -35,8 +42,7 @@ export function usePictureInPictureClock(msRef: Ref<number | null>, pushError: (
   }
 
   function getDocumentPictureInPictureApi(): DocumentPictureInPictureApi | null {
-    const candidate = (window as Window & { documentPictureInPicture?: DocumentPictureInPictureApi })
-      .documentPictureInPicture;
+    const candidate = (window as Window & { documentPictureInPicture?: DocumentPictureInPictureApi }).documentPictureInPicture;
     return candidate ?? null;
   }
 
@@ -189,6 +195,39 @@ export function usePictureInPictureClock(msRef: Ref<number | null>, pushError: (
     }
   }
 
+  function onVideoPipClosed() {
+    cleanupVideoPip();
+    pipActive.value = false;
+  }
+
+  function bindVideoPipListeners(video: PipVideo) {
+    if (videoPipListenerBound.value) {
+      return;
+    }
+
+    video.addEventListener('leavepictureinpicture', onVideoPipClosed);
+    webkitPresentationModeHandler.value = () => {
+      if (video.webkitPresentationMode !== 'picture-in-picture') {
+        onVideoPipClosed();
+      }
+    };
+    video.addEventListener('webkitpresentationmodechanged', webkitPresentationModeHandler.value);
+    videoPipListenerBound.value = true;
+  }
+
+  function unbindVideoPipListeners(video: PipVideo) {
+    if (!videoPipListenerBound.value) {
+      return;
+    }
+
+    video.removeEventListener('leavepictureinpicture', onVideoPipClosed);
+    if (webkitPresentationModeHandler.value) {
+      video.removeEventListener('webkitpresentationmodechanged', webkitPresentationModeHandler.value);
+      webkitPresentationModeHandler.value = null;
+    }
+    videoPipListenerBound.value = false;
+  }
+
   async function openVideoPip() {
     if (!videoPipSupported.value) {
       return false;
@@ -204,16 +243,19 @@ export function usePictureInPictureClock(msRef: Ref<number | null>, pushError: (
     const stream = canvas.captureStream(30);
     video.srcObject = stream;
     startCanvasTimer();
+    bindVideoPipListeners(video);
 
     await video.play();
 
     if ('requestPictureInPicture' in video) {
       await video.requestPictureInPicture();
+      pipActive.value = true;
       return true;
     }
 
     if (video.webkitSupportsPresentationMode?.('picture-in-picture')) {
       video.webkitSetPresentationMode?.('picture-in-picture');
+      pipActive.value = true;
       return true;
     }
 
@@ -259,6 +301,10 @@ export function usePictureInPictureClock(msRef: Ref<number | null>, pushError: (
       pipClockWindow.value.close();
     }
 
+    if (hiddenVideo.value?.webkitPresentationMode === 'picture-in-picture') {
+      hiddenVideo.value.webkitSetPresentationMode?.('inline');
+    }
+
     cleanupAll();
   }
 
@@ -285,6 +331,10 @@ export function usePictureInPictureClock(msRef: Ref<number | null>, pushError: (
 
   onBeforeUnmount(() => {
     cleanupAll();
+    if (hiddenVideo.value) {
+      unbindVideoPipListeners(hiddenVideo.value);
+      hiddenVideo.value.remove();
+    }
     hiddenVideo.value?.remove();
   });
 
