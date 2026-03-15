@@ -805,7 +805,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="control-card">
-          <p class="control-title">手机画中画</p>
+          <p class="control-title">画中画</p>
           <div class="action-row">
             <button
               type="button"
