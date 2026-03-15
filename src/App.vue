@@ -15,9 +15,9 @@ const SUNING_ICON = new URL('../icons/suning.ico', import.meta.url).href;
 
 const SOURCE_ORDER: SourceKey[] = ['taobao', 'meituan', 'suning'];
 const SOURCE_META: Record<SourceKey, { label: string; icon: string }> = {
-  taobao: { label: 'Taobao', icon: TAOBAO_ICON },
-  meituan: { label: 'Meituan', icon: MEITUAN_ICON },
-  suning: { label: 'Suning', icon: SUNING_ICON }
+  taobao: { label: '淘宝', icon: TAOBAO_ICON },
+  meituan: { label: '美团', icon: MEITUAN_ICON },
+  suning: { label: '苏宁', icon: SUNING_ICON }
 };
 
 const DISPLAY_TICK_MS = 100;
@@ -63,10 +63,10 @@ let inFlightCalibration: Promise<void> | null = null;
 
 const calibrationIntervalMs = computed(() => calibrationIntervalSec.value * 1000);
 const MAIN_CLOCK_SOURCE_OPTIONS: ReadonlyArray<{ key: MainClockSource; label: string }> = [
-  { key: 'reference', label: 'Median' },
-  { key: 'taobao', label: 'Taobao' },
-  { key: 'meituan', label: 'Meituan' },
-  { key: 'suning', label: 'Suning' }
+  { key: 'reference', label: '中位数' },
+  { key: 'taobao', label: '淘宝' },
+  { key: 'meituan', label: '美团' },
+  { key: 'suning', label: '苏宁' }
 ];
 
 const sourceCards = computed<SourceCard[]>(() => {
@@ -109,9 +109,9 @@ const groupedCards = computed<Record<SourceStatus, SourceCard[]>>(() => {
 
 const visibleGroups = computed(() => {
   const allGroups = [
-    { key: 'ok' as GroupKey, title: 'Healthy Sources', cards: groupedCards.value.ok },
-    { key: 'stale' as GroupKey, title: 'Fallback Sources', cards: groupedCards.value.stale },
-    { key: 'error' as GroupKey, title: 'Error Sources', cards: groupedCards.value.error }
+    { key: 'ok' as GroupKey, title: '正常数据源', cards: groupedCards.value.ok },
+    { key: 'stale' as GroupKey, title: '备用数据源', cards: groupedCards.value.stale },
+    { key: 'error' as GroupKey, title: '错误数据源', cards: groupedCards.value.error }
   ];
 
   if (groupFilter.value === 'all') {
@@ -190,10 +190,10 @@ const clockPrimary = computed(() => formatClockPrimary(mainClockState.value.ms))
 
 const clockSecondary = computed(() => {
   if (mainClockState.value.ms === null) {
-    return '-- ms · Local Offset --';
+    return '-- 毫秒 · 本地偏差 --';
   }
 
-  return `${formatMillis(mainClockState.value.ms)} · Local Offset ${formatSignedMs(mainClockState.value.offsetMs)}`;
+  return `${formatMillis(mainClockState.value.ms)} · 本地偏差 ${formatSignedMs(mainClockState.value.offsetMs)}`;
 });
 
 const calibrationMode = computed<'calibrating' | 'smooth' | 'locked'>(() => {
@@ -214,14 +214,14 @@ const calibrationMode = computed<'calibrating' | 'smooth' | 'locked'>(() => {
 
 const calibrationModeLabel = computed(() => {
   if (calibrationMode.value === 'calibrating') {
-    return 'Calibrating';
+    return '校准中';
   }
 
   if (calibrationMode.value === 'smooth') {
-    return 'Smooth Correction';
+    return '平滑校正';
   }
 
-  return 'Locked';
+  return '已锁定';
 });
 
 const calibrationModeClass = computed(() => `mode-${calibrationMode.value}`);
@@ -230,15 +230,15 @@ const generatedAtText = computed(() => formatTimestampDetailed(aggregate.value?.
 
 const nextCalibrationText = computed(() => {
   if (!autoCalibration.value) {
-    return 'Auto calibration is off';
+    return '自动校准已关闭';
   }
 
   if (calibrationAtMs.value === null) {
-    return 'Waiting for first calibration';
+    return '等待首次校准';
   }
 
   const ms = Math.max(0, calibrationIntervalMs.value - (Date.now() - calibrationAtMs.value));
-  return `Next calibration in ${formatCountdown(ms)}`;
+  return `下次校准 ${formatCountdown(ms)}`;
 });
 
 const calibrationRemainingMs = computed(() => {
@@ -422,14 +422,14 @@ function setMainClockSource(next: MainClockSource) {
 
 function sourceStatusLabel(status: TimeSourceData['status']) {
   if (status === 'ok') {
-    return 'OK';
+    return '正常';
   }
 
   if (status === 'stale') {
-    return 'STALE';
+    return '过期';
   }
 
-  return 'ERROR';
+  return '错误';
 }
 
 function sourceStatusClass(status: TimeSourceData['status']) {
@@ -455,11 +455,11 @@ function formatClockPrimary(ms: number | null): string {
 
 function formatMillis(ms: number | null): string {
   if (ms === null) {
-    return '--- ms';
+    return '--- 毫秒';
   }
 
   const absMs = Math.abs(Math.trunc(ms));
-  return `${String(absMs % 1000).padStart(3, '0')} ms`;
+  return `${String(absMs % 1000).padStart(3, '0')} 毫秒`;
 }
 
 function formatSignedMs(ms: number | null): string {
@@ -468,7 +468,7 @@ function formatSignedMs(ms: number | null): string {
   }
 
   const sign = ms >= 0 ? '+' : '-';
-  return `${sign}${Math.abs(Math.trunc(ms))} ms`;
+  return `${sign}${Math.abs(Math.trunc(ms))} 毫秒`;
 }
 
 function formatLatency(ms: number | null): string {
@@ -476,7 +476,7 @@ function formatLatency(ms: number | null): string {
     return '--';
   }
 
-  return `${Math.trunc(ms)} ms`;
+  return `${Math.trunc(ms)} 毫秒`;
 }
 
 function formatTimestampDetailed(ms: number | null): string {
@@ -547,7 +547,7 @@ onBeforeUnmount(() => {
   <main class="time-layout">
     <section class="panel hero-panel">
       <div class="hero-top">
-        <p class="kicker">OpenRealm Time Console</p>
+        <p class="kicker">OpenRealm 时间控制台</p>
         <span class="mode-pill" :class="calibrationModeClass" data-testid="calibration-mode">
           {{ calibrationModeLabel }}
         </span>
@@ -558,7 +558,7 @@ onBeforeUnmount(() => {
           <p class="main-clock" data-testid="main-clock-primary">{{ clockPrimary }}</p>
           <p class="main-clock-sub" data-testid="main-clock-secondary">{{ clockSecondary }}</p>
           <div class="calibration-meta">
-            <span>Last calibration: {{ generatedAtText }}</span>
+            <span>上次校准: {{ generatedAtText }}</span>
             <span data-testid="next-calibration">{{ nextCalibrationText }}</span>
           </div>
         </div>
@@ -566,7 +566,7 @@ onBeforeUnmount(() => {
         <div class="ring-wrap">
           <div class="ring-progress" :style="ringStyle" aria-hidden="true">
             <div class="ring-inner">
-              <p>Cycle</p>
+              <p>周期</p>
               <strong>{{ Math.round(calibrationProgress) }}%</strong>
             </div>
           </div>
@@ -575,7 +575,7 @@ onBeforeUnmount(() => {
 
       <div class="controls-grid">
         <div class="control-card">
-          <p class="control-title">Calibration</p>
+          <p class="control-title">校准</p>
           <div class="action-row">
             <button
               type="button"
@@ -584,7 +584,7 @@ onBeforeUnmount(() => {
               data-testid="auto-calibration-toggle"
               @click="autoCalibration = !autoCalibration"
             >
-              {{ autoCalibration ? 'Auto: ON' : 'Auto: OFF' }}
+              {{ autoCalibration ? '自动: 开启' : '自动: 关闭' }}
             </button>
             <button
               type="button"
@@ -593,13 +593,13 @@ onBeforeUnmount(() => {
               data-testid="manual-calibrate"
               @click="calibrateNow('manual')"
             >
-              {{ loading ? 'Calibrating...' : 'Calibrate Now' }}
+              {{ loading ? '校准中...' : '立即校准' }}
             </button>
           </div>
         </div>
 
         <div class="control-card">
-          <p class="control-title">Refresh interval (min 10s)</p>
+          <p class="control-title">刷新间隔 (最小10秒)</p>
           <div class="interval-box">
             <button type="button" class="icon-btn" data-testid="interval-dec" @click="decreaseInterval">-</button>
             <span class="interval-value" data-testid="interval-value">{{ calibrationIntervalSec }}s</span>
@@ -621,7 +621,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="control-card">
-          <p class="control-title">Group filter</p>
+          <p class="control-title">分组筛选</p>
           <div class="group-row">
             <button
               type="button"
@@ -630,7 +630,7 @@ onBeforeUnmount(() => {
               data-testid="filter-all"
               @click="setGroupFilter('all')"
             >
-              All
+              全部
             </button>
             <button
               type="button"
@@ -639,7 +639,7 @@ onBeforeUnmount(() => {
               data-testid="filter-ok"
               @click="setGroupFilter('ok')"
             >
-              OK
+              正常
             </button>
             <button
               type="button"
@@ -648,7 +648,7 @@ onBeforeUnmount(() => {
               data-testid="filter-stale"
               @click="setGroupFilter('stale')"
             >
-              STALE
+              过期
             </button>
             <button
               type="button"
@@ -657,13 +657,13 @@ onBeforeUnmount(() => {
               data-testid="filter-error"
               @click="setGroupFilter('error')"
             >
-              ERROR
+              错误
             </button>
           </div>
         </div>
 
         <div class="control-card">
-          <p class="control-title">Time display</p>
+          <p class="control-title">时间显示</p>
           <div class="action-row">
             <button
               type="button"
@@ -672,13 +672,13 @@ onBeforeUnmount(() => {
               data-testid="millis-toggle"
               @click="showMilliseconds = !showMilliseconds"
             >
-              {{ showMilliseconds ? 'Milliseconds: ON' : 'Milliseconds: OFF' }}
+              {{ showMilliseconds ? '毫秒: 显示' : '毫秒: 隐藏' }}
             </button>
           </div>
         </div>
 
         <div class="control-card">
-          <p class="control-title">Main clock source</p>
+          <p class="control-title">主时钟源</p>
           <div class="group-row">
             <button
               v-for="option in MAIN_CLOCK_SOURCE_OPTIONS"
@@ -698,19 +698,19 @@ onBeforeUnmount(() => {
 
     <section class="summary-grid">
       <article class="panel summary-card">
-        <p>Healthy</p>
+        <p>正常</p>
         <strong>{{ summaryStats.okCount }}</strong>
       </article>
       <article class="panel summary-card">
-        <p>Fallback</p>
+        <p>备用</p>
         <strong>{{ summaryStats.staleCount }}</strong>
       </article>
       <article class="panel summary-card">
-        <p>Error</p>
+        <p>错误</p>
         <strong>{{ summaryStats.errorCount }}</strong>
       </article>
       <article class="panel summary-card">
-        <p>Avg Latency</p>
+        <p>平均延迟</p>
         <strong>{{ formatLatency(summaryStats.avgLatency) }}</strong>
       </article>
     </section>
@@ -718,7 +718,7 @@ onBeforeUnmount(() => {
     <section v-for="group in visibleGroups" :key="group.key" class="group-section">
       <header class="group-head">
         <h2>{{ group.title }}</h2>
-        <span class="group-count">{{ group.cards.length }} source(s)</span>
+        <span class="group-count">{{ group.cards.length }} 个数据源</span>
       </header>
 
       <div v-if="group.cards.length > 0" class="source-grid">
@@ -732,7 +732,7 @@ onBeforeUnmount(() => {
                 <p class="source-name" data-testid="source-title">{{ item.label }}</p>
                 <p class="source-time">{{ formatClockPrimary(item.estimatedMs) }}</p>
                 <p class="source-subtime">
-                  {{ formatMillis(item.estimatedMs) }} · Offset {{ formatSignedMs(item.offsetMs) }}
+                  {{ formatMillis(item.estimatedMs) }} · 偏差 {{ formatSignedMs(item.offsetMs) }}
                 </p>
               </div>
             </div>
@@ -744,11 +744,11 @@ onBeforeUnmount(() => {
 
           <div class="source-metrics">
             <div>
-              <span>Latency</span>
+              <span>延迟</span>
               <strong>{{ formatLatency(item.source?.latencyMs ?? null) }}</strong>
             </div>
             <div>
-              <span>Fetched At</span>
+              <span>获取时间</span>
               <strong>{{ formatTimestampDetailed(item.source?.fetchedAtMs ?? null) }}</strong>
             </div>
           </div>
@@ -757,19 +757,19 @@ onBeforeUnmount(() => {
         </article>
       </div>
 
-      <article v-else class="panel empty-group">No source in this group</article>
+      <article v-else class="panel empty-group">该分组暂无数据源</article>
     </section>
 
     <section class="panel dual-panel">
       <article class="dual-card">
-        <h3>Latency ranking</h3>
+        <h3>延迟排名</h3>
         <div v-for="entry in latencyRanking" :key="entry.sourceKey" class="rank-row" data-testid="latency-item">
           <span>{{ entry.label }}</span>
           <strong>{{ formatLatency(entry.source?.latencyMs ?? null) }}</strong>
         </div>
       </article>
       <article class="dual-card">
-        <h3>Offset ranking</h3>
+        <h3>偏差排名</h3>
         <div v-for="entry in offsetRanking" :key="`offset-${entry.sourceKey}`" class="rank-row">
           <span>{{ entry.label }}</span>
           <strong>{{ formatSignedMs(entry.offsetMs) }}</strong>
@@ -778,8 +778,8 @@ onBeforeUnmount(() => {
     </section>
 
     <section class="panel error-panel">
-      <h3>Recent errors</h3>
-      <p v-if="recentErrors.length === 0" class="quiet">No recent errors</p>
+      <h3>最近错误</h3>
+      <p v-if="recentErrors.length === 0" class="quiet">暂无错误</p>
       <div v-else class="error-list">
         <p v-for="message in recentErrors" :key="message">{{ message }}</p>
       </div>
