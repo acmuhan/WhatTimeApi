@@ -202,6 +202,36 @@ describe('App dashboard', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('supports switching main clock source', async () => {
+    const payload = createPayload();
+    const now = Date.now();
+    payload.sources.taobao.serverTimeMs = now + 1_200;
+    payload.sources.taobao.serverTimeISO = new Date(now + 1_200).toISOString();
+    payload.sources.meituan.serverTimeMs = now + 100;
+    payload.sources.meituan.serverTimeISO = new Date(now + 100).toISOString();
+    payload.sources.suning.serverTimeMs = now + 2_300;
+    payload.sources.suning.serverTimeISO = new Date(now + 2_300).toISOString();
+
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const wrapper = mount(App);
+    await settleUi();
+
+    const defaultPrimary = wrapper.get('[data-testid="main-clock-primary"]').text();
+
+    await wrapper.get('[data-testid="clock-source-meituan"]').trigger('click');
+    await settleUi();
+    const meituanPrimary = wrapper.get('[data-testid="main-clock-primary"]').text();
+
+    await wrapper.get('[data-testid="clock-source-reference"]').trigger('click');
+    await settleUi();
+    const restoredPrimary = wrapper.get('[data-testid="main-clock-primary"]').text();
+
+    expect(meituanPrimary).not.toBe(defaultPrimary);
+    expect(restoredPrimary).toBe(defaultPrimary);
+  });
+
   it('recalibrates when tab becomes visible', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(createPayload()), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);

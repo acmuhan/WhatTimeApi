@@ -9,14 +9,18 @@ import {
 } from './clock-engine';
 import type { AggregateResponse, SourceKey, SourceStatus, TimeSourceData } from './types';
 
+const TAOBAO_ICON = new URL('../icons/tb.ico', import.meta.url).href;
+const MEITUAN_ICON = new URL('../icons/favicon-mt.ico', import.meta.url).href;
+const SUNING_ICON = new URL('../icons/suning.ico', import.meta.url).href;
+
 const SOURCE_ORDER: SourceKey[] = ['taobao', 'meituan', 'suning'];
-const SOURCE_META: Record<SourceKey, { label: string; logo: string }> = {
-  taobao: { label: 'Taobao', logo: 'T' },
-  meituan: { label: 'Meituan', logo: 'M' },
-  suning: { label: 'Suning', logo: 'S' }
+const SOURCE_META: Record<SourceKey, { label: string; icon: string }> = {
+  taobao: { label: 'Taobao', icon: TAOBAO_ICON },
+  meituan: { label: 'Meituan', icon: MEITUAN_ICON },
+  suning: { label: 'Suning', icon: SUNING_ICON }
 };
 
-const DISPLAY_TICK_MS = 250;
+const DISPLAY_TICK_MS = 100;
 const MAX_ERROR_LOGS = 12;
 const MIN_INTERVAL_SEC = 10;
 const MAX_INTERVAL_SEC = 120;
@@ -29,10 +33,11 @@ const CALIBRATION_CONFIG = {
 
 type GroupFilter = 'all' | SourceStatus;
 type GroupKey = SourceStatus;
+type MainClockSource = 'reference' | SourceKey;
 type SourceCard = {
   sourceKey: SourceKey;
   label: string;
-  logo: string;
+  icon: string;
   source: TimeSourceData | null;
   baseline: ClockBaseline | null;
   estimatedMs: number | null;
@@ -43,8 +48,10 @@ type SourceCard = {
 const aggregate = ref<AggregateResponse | null>(null);
 const loading = ref(false);
 const autoCalibration = ref(true);
+const showMilliseconds = ref(true);
 const calibrationIntervalSec = ref<number>(10);
 const groupFilter = ref<GroupFilter>('all');
+const mainClockSource = ref<MainClockSource>('reference');
 const recentErrors = ref<string[]>([]);
 const renderPerfNow = ref(getPerfNow());
 const calibrationAtMs = ref<number | null>(null);
@@ -55,6 +62,12 @@ let autoCalibrationTimer: number | null = null;
 let inFlightCalibration: Promise<void> | null = null;
 
 const calibrationIntervalMs = computed(() => calibrationIntervalSec.value * 1000);
+const MAIN_CLOCK_SOURCE_OPTIONS: ReadonlyArray<{ key: MainClockSource; label: string }> = [
+  { key: 'reference', label: 'Median' },
+  { key: 'taobao', label: 'Taobao' },
+  { key: 'meituan', label: 'Meituan' },
+  { key: 'suning', label: 'Suning' }
+];
 
 const sourceCards = computed<SourceCard[]>(() => {
   return SOURCE_ORDER.map((sourceKey) => {
@@ -70,7 +83,7 @@ const sourceCards = computed<SourceCard[]>(() => {
     return {
       sourceKey,
       label: SOURCE_META[sourceKey].label,
-      logo: SOURCE_META[sourceKey].logo,
+      icon: SOURCE_META[sourceKey].icon,
       source,
       baseline,
       estimatedMs,
@@ -158,14 +171,29 @@ const referenceOffsetMs = computed(() => {
   return Math.trunc(referenceTimeMs.value - Date.now());
 });
 
-const clockPrimary = computed(() => formatClockPrimary(referenceTimeMs.value));
+const mainClockState = computed(() => {
+  if (mainClockSource.value === 'reference') {
+    return {
+      ms: referenceTimeMs.value,
+      offsetMs: referenceOffsetMs.value
+    };
+  }
+
+  const selected = sourceCards.value.find((item) => item.sourceKey === mainClockSource.value) ?? null;
+  return {
+    ms: selected?.estimatedMs ?? null,
+    offsetMs: selected?.offsetMs ?? null
+  };
+});
+
+const clockPrimary = computed(() => formatClockPrimary(mainClockState.value.ms));
 
 const clockSecondary = computed(() => {
-  if (referenceTimeMs.value === null) {
+  if (mainClockState.value.ms === null) {
     return '-- ms · Local Offset --';
   }
 
-  return `${formatMillis(referenceTimeMs.value)} · Local Offset ${formatSignedMs(referenceOffsetMs.value)}`;
+  return `${formatMillis(mainClockState.value.ms)} · Local Offset ${formatSignedMs(mainClockState.value.offsetMs)}`;
 });
 
 const calibrationMode = computed<'calibrating' | 'smooth' | 'locked'>(() => {
@@ -388,6 +416,10 @@ function setGroupFilter(next: GroupFilter) {
   groupFilter.value = next;
 }
 
+function setMainClockSource(next: MainClockSource) {
+  mainClockSource.value = next;
+}
+
 function sourceStatusLabel(status: TimeSourceData['status']) {
   if (status === 'ok') {
     return 'OK';
@@ -406,13 +438,19 @@ function sourceStatusClass(status: TimeSourceData['status']) {
 
 function formatClockPrimary(ms: number | null): string {
   if (ms === null) {
-    return '--:--:--';
+    return showMilliseconds.value ? '--:--:--.--' : '--:--:--';
   }
 
-  return new Date(ms).toLocaleTimeString('zh-CN', {
+  const time = new Date(ms).toLocaleTimeString('zh-CN', {
     hour12: false,
     timeZone: 'Asia/Shanghai'
   });
+  if (!showMilliseconds.value) {
+    return time;
+  }
+
+  const centiseconds = String(Math.floor((Math.abs(Math.trunc(ms)) % 1000) / 10)).padStart(2, '0');
+  return `${time}.${centiseconds}`;
 }
 
 function formatMillis(ms: number | null): string {
@@ -623,6 +661,38 @@ onBeforeUnmount(() => {
             </button>
           </div>
         </div>
+
+        <div class="control-card">
+          <p class="control-title">Time display</p>
+          <div class="action-row">
+            <button
+              type="button"
+              class="pill-btn"
+              :class="showMilliseconds ? 'is-active' : ''"
+              data-testid="millis-toggle"
+              @click="showMilliseconds = !showMilliseconds"
+            >
+              {{ showMilliseconds ? 'Milliseconds: ON' : 'Milliseconds: OFF' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="control-card">
+          <p class="control-title">Main clock source</p>
+          <div class="group-row">
+            <button
+              v-for="option in MAIN_CLOCK_SOURCE_OPTIONS"
+              :key="option.key"
+              type="button"
+              class="group-btn"
+              :class="mainClockSource === option.key ? 'is-active' : ''"
+              :data-testid="`clock-source-${option.key}`"
+              @click="setMainClockSource(option.key)"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -655,7 +725,9 @@ onBeforeUnmount(() => {
         <article v-for="item in group.cards" :key="item.sourceKey" class="panel source-card">
           <header class="source-header">
             <div class="source-brand">
-              <div class="brand-icon" :class="`brand-${item.sourceKey}`" aria-hidden="true">{{ item.logo }}</div>
+              <div class="brand-icon">
+                <img class="brand-icon-image" :src="item.icon" :alt="`${item.label} icon`" loading="lazy" />
+              </div>
               <div>
                 <p class="source-name" data-testid="source-title">{{ item.label }}</p>
                 <p class="source-time">{{ formatClockPrimary(item.estimatedMs) }}</p>
