@@ -33,6 +33,7 @@ const CALIBRATION_CONFIG = {
 
 type GroupFilter = 'all' | SourceStatus;
 type GroupKey = SourceStatus;
+type MainClockSource = 'reference' | SourceKey;
 type SourceCard = {
   sourceKey: SourceKey;
   label: string;
@@ -50,6 +51,7 @@ const autoCalibration = ref(true);
 const showMilliseconds = ref(true);
 const calibrationIntervalSec = ref<number>(10);
 const groupFilter = ref<GroupFilter>('all');
+const mainClockSource = ref<MainClockSource>('reference');
 const recentErrors = ref<string[]>([]);
 const renderPerfNow = ref(getPerfNow());
 const calibrationAtMs = ref<number | null>(null);
@@ -60,6 +62,12 @@ let autoCalibrationTimer: number | null = null;
 let inFlightCalibration: Promise<void> | null = null;
 
 const calibrationIntervalMs = computed(() => calibrationIntervalSec.value * 1000);
+const MAIN_CLOCK_SOURCE_OPTIONS: ReadonlyArray<{ key: MainClockSource; label: string }> = [
+  { key: 'reference', label: 'Median' },
+  { key: 'taobao', label: 'Taobao' },
+  { key: 'meituan', label: 'Meituan' },
+  { key: 'suning', label: 'Suning' }
+];
 
 const sourceCards = computed<SourceCard[]>(() => {
   return SOURCE_ORDER.map((sourceKey) => {
@@ -163,14 +171,29 @@ const referenceOffsetMs = computed(() => {
   return Math.trunc(referenceTimeMs.value - Date.now());
 });
 
-const clockPrimary = computed(() => formatClockPrimary(referenceTimeMs.value));
+const mainClockState = computed(() => {
+  if (mainClockSource.value === 'reference') {
+    return {
+      ms: referenceTimeMs.value,
+      offsetMs: referenceOffsetMs.value
+    };
+  }
+
+  const selected = sourceCards.value.find((item) => item.sourceKey === mainClockSource.value) ?? null;
+  return {
+    ms: selected?.estimatedMs ?? null,
+    offsetMs: selected?.offsetMs ?? null
+  };
+});
+
+const clockPrimary = computed(() => formatClockPrimary(mainClockState.value.ms));
 
 const clockSecondary = computed(() => {
-  if (referenceTimeMs.value === null) {
+  if (mainClockState.value.ms === null) {
     return '-- ms · Local Offset --';
   }
 
-  return `${formatMillis(referenceTimeMs.value)} · Local Offset ${formatSignedMs(referenceOffsetMs.value)}`;
+  return `${formatMillis(mainClockState.value.ms)} · Local Offset ${formatSignedMs(mainClockState.value.offsetMs)}`;
 });
 
 const calibrationMode = computed<'calibrating' | 'smooth' | 'locked'>(() => {
@@ -391,6 +414,10 @@ function increaseInterval() {
 
 function setGroupFilter(next: GroupFilter) {
   groupFilter.value = next;
+}
+
+function setMainClockSource(next: MainClockSource) {
+  mainClockSource.value = next;
 }
 
 function sourceStatusLabel(status: TimeSourceData['status']) {
@@ -646,6 +673,23 @@ onBeforeUnmount(() => {
               @click="showMilliseconds = !showMilliseconds"
             >
               {{ showMilliseconds ? 'Milliseconds: ON' : 'Milliseconds: OFF' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="control-card">
+          <p class="control-title">Main clock source</p>
+          <div class="group-row">
+            <button
+              v-for="option in MAIN_CLOCK_SOURCE_OPTIONS"
+              :key="option.key"
+              type="button"
+              class="group-btn"
+              :class="mainClockSource === option.key ? 'is-active' : ''"
+              :data-testid="`clock-source-${option.key}`"
+              @click="setMainClockSource(option.key)"
+            >
+              {{ option.label }}
             </button>
           </div>
         </div>
