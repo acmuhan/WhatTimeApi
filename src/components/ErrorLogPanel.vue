@@ -1,14 +1,16 @@
 <script setup lang="ts">
-defineProps<{ recentErrors: string[] }>();
+import type { DashboardCopy } from '../composables/useDashboardUi';
+
+defineProps<{ recentErrors: string[]; copy: DashboardCopy }>();
 </script>
 
 <template>
   <section class="sidebar-block error-panel">
     <div class="side-card__head">
-      <p class="eyebrow">Logs</p>
-      <h3>最近错误</h3>
+      <p class="eyebrow">{{ copy.errors.eyebrow }}</p>
+      <h3>{{ copy.errors.title }}</h3>
     </div>
-    <p v-if="recentErrors.length === 0" class="quiet">暂无错误。</p>
+    <p v-if="recentErrors.length === 0" class="quiet">{{ copy.errors.empty }}</p>
     <div v-else class="error-list">
       <p v-for="(message, index) in recentErrors" :key="message" class="error-list__row">
         <span class="error-index">{{ String(index + 1).padStart(2, '0') }}</span>

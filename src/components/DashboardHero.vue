@@ -2,10 +2,10 @@
 import {
   INTERVAL_PRESETS,
   MILLISECOND_DIGIT_OPTIONS,
-  MAIN_CLOCK_SOURCE_OPTIONS,
   type GroupFilter,
   type MainClockSource
 } from '../constants/time-dashboard';
+import type { DashboardCopy, DashboardLocale, DashboardTheme } from '../composables/useDashboardUi';
 
 defineProps<{
   calibrationModeLabel: string;
@@ -25,6 +25,10 @@ defineProps<{
   groupFilter: GroupFilter;
   showMilliseconds: boolean;
   millisecondDigits: number;
+  sourceOptions: ReadonlyArray<{ key: MainClockSource; label: string }>;
+  copy: DashboardCopy;
+  theme: DashboardTheme;
+  locale: DashboardLocale;
 }>();
 
 const emit = defineEmits<{
@@ -39,6 +43,8 @@ const emit = defineEmits<{
   setGroupFilter: [value: GroupFilter];
   toggleMilliseconds: [];
   setMillisecondDigits: [value: number];
+  toggleTheme: [];
+  toggleLocale: [];
 }>();
 </script>
 
@@ -46,24 +52,35 @@ const emit = defineEmits<{
   <section class="hero-panel">
     <div class="hero-panel__header">
       <div>
-        <p class="eyebrow">REFERENCE CLOCK</p>
-        <h2>主时钟读数</h2>
+        <p class="eyebrow">{{ copy.hero.eyebrow }}</p>
+        <h2>{{ copy.hero.title }}</h2>
       </div>
-      <span class="mode-pill" :class="calibrationModeClass" data-testid="calibration-mode">{{ calibrationModeLabel }}</span>
+
+      <div class="hero-panel__header-side">
+        <div class="hero-panel__toggles">
+          <button type="button" class="speed-button speed-button--ghost speed-button--micro" @click="emit('toggleTheme')">
+            {{ copy.hero.themeLabel }} · {{ theme === 'dark' ? copy.hero.themeDark : copy.hero.themeLight }}
+          </button>
+          <button type="button" class="speed-button speed-button--ghost speed-button--micro" @click="emit('toggleLocale')">
+            {{ copy.hero.languageLabel }} · {{ locale === 'zh' ? copy.hero.languageZh : copy.hero.languageEn }}
+          </button>
+        </div>
+        <span class="mode-pill" :class="calibrationModeClass" data-testid="calibration-mode">{{ calibrationModeLabel }}</span>
+      </div>
     </div>
 
     <div class="hero-panel__display">
       <div class="hero-panel__time-block">
         <div class="hero-panel__speedline" aria-hidden="true">
-          <span class="hero-panel__speedline-badge">VELOCITY LOCK</span>
+          <span class="hero-panel__speedline-badge">{{ copy.hero.speedlineBadge }}</span>
           <span class="hero-panel__speedline-track">
             <i />
             <i />
             <i />
           </span>
-          <span class="hero-panel__speedline-copy">快读模式已接管主时钟</span>
+          <span class="hero-panel__speedline-copy">{{ copy.hero.speedlineCopy }}</span>
         </div>
-        <p class="hero-panel__source">SOURCE · {{ MAIN_CLOCK_SOURCE_OPTIONS.find((option) => option.key === mainClockSource)?.label ?? '未知' }}</p>
+        <p class="hero-panel__source">{{ copy.hero.sourcePrefix }} {{ sourceOptions.find((option) => option.key === mainClockSource)?.label ?? copy.hero.sourceUnknown }}</p>
         <p class="main-clock" data-testid="main-clock-primary">
           <span>{{ clockPrimaryParts.time }}</span>
           <template v-if="clockPrimaryParts.fraction !== null">
@@ -74,43 +91,43 @@ const emit = defineEmits<{
         <p class="main-clock-sub" data-testid="main-clock-secondary">
           <template v-if="clockSecondary !== null">
             <span class="ms-accent">{{ clockSecondary.millis }}</span>
-            <span> · 本地偏差 {{ clockSecondary.offset }}</span>
+            <span> · {{ copy.hero.offsetPrefix }} {{ clockSecondary.offset }}</span>
           </template>
-          <template v-else>-- 毫秒 · 本地偏差 --</template>
+          <template v-else>{{ copy.hero.offsetEmpty }}</template>
         </p>
       </div>
 
       <div class="hero-panel__meta-rail">
         <div class="meta-block">
-          <span>LAST CAL</span>
+          <span>{{ copy.hero.metaLastCal }}</span>
           <strong>
             {{ generatedAtParts.head }}
             <template v-if="generatedAtParts.tail !== null">.<span class="ms-accent">{{ generatedAtParts.tail }}</span></template>
           </strong>
         </div>
         <div class="meta-block">
-          <span>NEXT CAL</span>
+          <span>{{ copy.hero.metaNextCal }}</span>
           <strong data-testid="next-calibration">{{ nextCalibrationText }}</strong>
         </div>
         <div class="meta-block">
-          <span>PIP</span>
-          <strong>{{ pipActive ? '运行中' : pipSupported ? '可开启' : '不支持' }}</strong>
+          <span>{{ copy.hero.metaPip }}</span>
+          <strong>{{ pipActive ? copy.hero.pipRunning : pipSupported ? copy.hero.pipAvailable : copy.hero.pipUnsupported }}</strong>
         </div>
       </div>
     </div>
 
     <div class="control-zone">
       <div class="action-strip">
-        <button type="button" class="speed-button speed-button--ghost" :class="autoCalibration ? 'is-active' : ''" data-testid="auto-calibration-toggle" @click="emit('toggleAutoCalibration')">{{ autoCalibration ? '自动: 开启' : '自动: 关闭' }}</button>
-        <button type="button" class="speed-button speed-button--solid" :disabled="loading" data-testid="manual-calibrate" @click="emit('calibrateNow')">{{ loading ? '校准中...' : '立即校准' }}</button>
-        <button type="button" class="speed-button speed-button--ghost" :class="pipActive ? 'is-active' : ''" :disabled="!pipSupported && !pipActive" data-testid="pip-toggle" @click="emit('togglePip')">{{ !pipSupported && !pipActive ? '画中画: 不支持' : pipActive ? '画中画: 关闭' : '画中画: 开启' }}</button>
+        <button type="button" class="speed-button speed-button--ghost" :class="autoCalibration ? 'is-active' : ''" data-testid="auto-calibration-toggle" @click="emit('toggleAutoCalibration')">{{ autoCalibration ? copy.hero.autoOn : copy.hero.autoOff }}</button>
+        <button type="button" class="speed-button speed-button--solid" :disabled="loading" data-testid="manual-calibrate" @click="emit('calibrateNow')">{{ loading ? copy.hero.calibrating : copy.hero.calibrateNow }}</button>
+        <button type="button" class="speed-button speed-button--ghost" :class="pipActive ? 'is-active' : ''" :disabled="!pipSupported && !pipActive" data-testid="pip-toggle" @click="emit('togglePip')">{{ !pipSupported && !pipActive ? copy.hero.pipUnsupportedAction : pipActive ? copy.hero.pipClose : copy.hero.pipOpen }}</button>
       </div>
 
       <div class="control-row">
-        <label class="control-label">主时钟源</label>
+        <label class="control-label">{{ copy.hero.sourceControl }}</label>
         <div class="track-switch">
           <button
-            v-for="option in MAIN_CLOCK_SOURCE_OPTIONS"
+            v-for="option in sourceOptions"
             :key="option.key"
             type="button"
             class="track-switch__button"
@@ -124,7 +141,7 @@ const emit = defineEmits<{
       </div>
 
       <div class="control-row">
-        <label class="control-label">刷新间隔</label>
+        <label class="control-label">{{ copy.hero.intervalControl }}</label>
         <div class="control-inline">
           <div class="stepper-control">
             <button type="button" class="stepper-control__button" data-testid="interval-dec" @click="emit('decreaseInterval')">−</button>
@@ -138,27 +155,27 @@ const emit = defineEmits<{
       </div>
     </div>
 
-    <button type="button" class="settings-toggle" data-testid="settings-toggle" @click="emit('toggleMobileSettings')">{{ mobileSettingsExpanded ? '收起更多设置' : '更多设置' }}</button>
+    <button type="button" class="settings-toggle" data-testid="settings-toggle" @click="emit('toggleMobileSettings')">{{ mobileSettingsExpanded ? copy.hero.settingsLess : copy.hero.settingsMore }}</button>
 
     <div class="sub-controls" :class="{ 'is-expanded': mobileSettingsExpanded }">
       <div class="control-row">
-        <label class="control-label">分组筛选</label>
+        <label class="control-label">{{ copy.hero.filterControl }}</label>
         <div class="track-switch">
-          <button type="button" class="track-switch__button" :class="groupFilter === 'all' ? 'is-active' : ''" data-testid="filter-all" @click="emit('setGroupFilter', 'all')">全部</button>
-          <button type="button" class="track-switch__button" :class="groupFilter === 'ok' ? 'is-active' : ''" data-testid="filter-ok" @click="emit('setGroupFilter', 'ok')">正常</button>
-          <button type="button" class="track-switch__button" :class="groupFilter === 'stale' ? 'is-active' : ''" data-testid="filter-stale" @click="emit('setGroupFilter', 'stale')">过期</button>
-          <button type="button" class="track-switch__button" :class="groupFilter === 'error' ? 'is-active' : ''" data-testid="filter-error" @click="emit('setGroupFilter', 'error')">错误</button>
+          <button type="button" class="track-switch__button" :class="groupFilter === 'all' ? 'is-active' : ''" data-testid="filter-all" @click="emit('setGroupFilter', 'all')">{{ copy.hero.filters.all }}</button>
+          <button type="button" class="track-switch__button" :class="groupFilter === 'ok' ? 'is-active' : ''" data-testid="filter-ok" @click="emit('setGroupFilter', 'ok')">{{ copy.hero.filters.ok }}</button>
+          <button type="button" class="track-switch__button" :class="groupFilter === 'stale' ? 'is-active' : ''" data-testid="filter-stale" @click="emit('setGroupFilter', 'stale')">{{ copy.hero.filters.stale }}</button>
+          <button type="button" class="track-switch__button" :class="groupFilter === 'error' ? 'is-active' : ''" data-testid="filter-error" @click="emit('setGroupFilter', 'error')">{{ copy.hero.filters.error }}</button>
         </div>
       </div>
 
       <div class="control-row control-row--last">
-        <label class="control-label">毫秒显示</label>
+        <label class="control-label">{{ copy.hero.millisControl }}</label>
         <div class="control-inline">
-          <button type="button" class="speed-button speed-button--ghost" :class="showMilliseconds ? 'is-active' : ''" data-testid="millis-toggle" @click="emit('toggleMilliseconds')">{{ showMilliseconds ? '毫秒: 显示' : '毫秒: 隐藏' }}</button>
+          <button type="button" class="speed-button speed-button--ghost" :class="showMilliseconds ? 'is-active' : ''" data-testid="millis-toggle" @click="emit('toggleMilliseconds')">{{ showMilliseconds ? copy.hero.millisShow : copy.hero.millisHide }}</button>
           <div class="track-switch track-switch--compact">
-            <button v-for="digits in MILLISECOND_DIGIT_OPTIONS" :key="digits" type="button" class="track-switch__button" :class="millisecondDigits === digits ? 'is-active' : ''" :data-testid="`millis-digits-${digits}`" @click="emit('setMillisecondDigits', digits)">{{ digits }}位</button>
+            <button v-for="digits in MILLISECOND_DIGIT_OPTIONS" :key="digits" type="button" class="track-switch__button" :class="millisecondDigits === digits ? 'is-active' : ''" :data-testid="`millis-digits-${digits}`" @click="emit('setMillisecondDigits', digits)">{{ locale === 'zh' ? `${digits}位` : `${digits} d` }}</button>
           </div>
-          <span class="support-text">PiP 模式：{{ pipModeLabel }}</span>
+          <span class="support-text">{{ copy.hero.pipModePrefix }}{{ pipModeLabel }}</span>
         </div>
       </div>
     </div>
