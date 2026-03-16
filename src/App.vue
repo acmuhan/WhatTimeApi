@@ -47,76 +47,79 @@ const { pipSupported, pipActive, pipModeLabel, togglePipClock } = pip;
 </script>
 
 <template>
-  <main class="time-layout">
-    <div class="ambient ambient-a" aria-hidden="true" />
-    <div class="ambient ambient-b" aria-hidden="true" />
+  <main class="velocity-page">
+    <div class="velocity-page__noise" aria-hidden="true" />
+    <div class="velocity-page__flare velocity-page__flare--a" aria-hidden="true" />
+    <div class="velocity-page__flare velocity-page__flare--b" aria-hidden="true" />
 
-    <section class="shell">
-      <header class="page-header">
-        <div class="page-header__copy">
-          <p class="page-kicker">WhatTimeApi</p>
-          <h1>时间控制台</h1>
-          <p class="page-subtitle">更安静、更精确的多源时间界面。重点只留给时间本身。</p>
-        </div>
-
-        <div class="page-header__meta">
-          <span class="meta-pill">{{ autoCalibration ? '自动校准' : '手动模式' }}</span>
-          <span class="meta-pill">{{ calibrationIntervalSec }}s</span>
-        </div>
+    <section class="velocity-shell">
+      <header class="velocity-intro">
+        <p class="eyebrow">WHATTIME // SPEED VIEW</p>
+        <h1>时间，应该像速度一样一眼就到。</h1>
+        <p class="velocity-intro__copy">
+          重新设计成速度优先的读数界面。更强对比、更少装饰、更快扫读，把主时钟、延迟、偏差和状态压进一条干净的视觉轨道里。
+        </p>
       </header>
 
-      <DashboardHero
-        :calibration-mode-label="calibrationModeLabel"
-        :calibration-mode-class="calibrationModeClass"
-        :clock-primary-parts="clockPrimaryParts"
-        :clock-secondary="clockSecondary"
-        :generated-at-parts="generatedAtParts"
-        :next-calibration-text="nextCalibrationText"
-        :auto-calibration="autoCalibration"
-        :loading="loading"
-        :main-clock-source="mainClockSource"
-        :pip-supported="pipSupported"
-        :pip-active="pipActive"
-        :pip-mode-label="pipModeLabel"
-        :mobile-settings-expanded="mobileSettingsExpanded"
-        :calibration-interval-sec="calibrationIntervalSec"
-        :group-filter="groupFilter"
-        :show-milliseconds="showMilliseconds"
-        :millisecond-digits="millisecondDigits"
-        @toggle-auto-calibration="autoCalibration = !autoCalibration"
-        @calibrate-now="calibrateNow('manual')"
-        @set-main-clock-source="setMainClockSource"
-        @toggle-pip="togglePipClock"
-        @toggle-mobile-settings="mobileSettingsExpanded = !mobileSettingsExpanded"
-        @decrease-interval="decreaseInterval"
-        @increase-interval="increaseInterval"
-        @set-calibration-interval-sec="setCalibrationIntervalSec"
-        @set-group-filter="setGroupFilter"
-        @toggle-milliseconds="showMilliseconds = !showMilliseconds"
-        @set-millisecond-digits="setMillisecondDigits"
-      />
-
-      <section class="overview-strip" aria-label="summary">
-        <article class="overview-item overview-item--primary">
-          <span>平均延迟</span>
+      <section class="velocity-kpis" aria-label="summary">
+        <article class="velocity-kpi velocity-kpi--primary">
+          <span>AVG LATENCY</span>
           <strong>{{ formatLatency(summaryStats.avgLatency) }}</strong>
         </article>
-        <article class="overview-item">
-          <span>正常源</span>
+        <article class="velocity-kpi">
+          <span>OK</span>
           <strong>{{ summaryStats.okCount }}</strong>
         </article>
-        <article class="overview-item">
-          <span>回退源</span>
+        <article class="velocity-kpi">
+          <span>STALE</span>
           <strong>{{ summaryStats.staleCount }}</strong>
         </article>
-        <article class="overview-item">
-          <span>错误源</span>
+        <article class="velocity-kpi">
+          <span>ERROR</span>
           <strong>{{ summaryStats.errorCount }}</strong>
         </article>
       </section>
 
-      <section class="content-grid">
-        <div class="content-main">
+      <section class="velocity-stage">
+        <DashboardHero
+          :calibration-mode-label="calibrationModeLabel"
+          :calibration-mode-class="calibrationModeClass"
+          :clock-primary-parts="clockPrimaryParts"
+          :clock-secondary="clockSecondary"
+          :generated-at-parts="generatedAtParts"
+          :next-calibration-text="nextCalibrationText"
+          :auto-calibration="autoCalibration"
+          :loading="loading"
+          :main-clock-source="mainClockSource"
+          :pip-supported="pipSupported"
+          :pip-active="pipActive"
+          :pip-mode-label="pipModeLabel"
+          :mobile-settings-expanded="mobileSettingsExpanded"
+          :calibration-interval-sec="calibrationIntervalSec"
+          :group-filter="groupFilter"
+          :show-milliseconds="showMilliseconds"
+          :millisecond-digits="millisecondDigits"
+          @toggle-auto-calibration="autoCalibration = !autoCalibration"
+          @calibrate-now="calibrateNow('manual')"
+          @set-main-clock-source="setMainClockSource"
+          @toggle-pip="togglePipClock"
+          @toggle-mobile-settings="mobileSettingsExpanded = !mobileSettingsExpanded"
+          @decrease-interval="decreaseInterval"
+          @increase-interval="increaseInterval"
+          @set-calibration-interval-sec="setCalibrationIntervalSec"
+          @set-group-filter="setGroupFilter"
+          @toggle-milliseconds="showMilliseconds = !showMilliseconds"
+          @set-millisecond-digits="setMillisecondDigits"
+        />
+      </section>
+
+      <section class="velocity-section-head">
+        <p class="eyebrow">SOURCE FEED</p>
+        <h2>所有时间源，全部进主赛道。</h2>
+      </section>
+
+      <section class="velocity-grid">
+        <div class="velocity-grid__main velocity-surface velocity-surface--main">
           <SourceGroups
             :groups="visibleGroups"
             :show-milliseconds="showMilliseconds"
@@ -132,14 +135,18 @@ const { pipSupported, pipActive, pipModeLabel, togglePipClock } = pip;
           />
         </div>
 
-        <aside class="content-side">
-          <RankingsPanel
-            :latency-ranking="latencyRanking"
-            :offset-ranking="offsetRanking"
-            :format-latency="formatLatency"
-            :format-signed-ms="formatSignedMs"
-          />
-          <ErrorLogPanel :recent-errors="recentErrors" />
+        <aside class="velocity-grid__side">
+          <div class="velocity-surface velocity-surface--side">
+            <RankingsPanel
+              :latency-ranking="latencyRanking"
+              :offset-ranking="offsetRanking"
+              :format-latency="formatLatency"
+              :format-signed-ms="formatSignedMs"
+            />
+          </div>
+          <div class="velocity-surface velocity-surface--side">
+            <ErrorLogPanel :recent-errors="recentErrors" />
+          </div>
         </aside>
       </section>
     </section>

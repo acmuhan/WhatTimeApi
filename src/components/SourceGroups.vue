@@ -20,7 +20,7 @@ defineProps<{
   <section v-for="group in groups" :key="group.key" class="group-section">
     <header class="group-head">
       <div>
-        <p class="group-kicker">{{ group.key === 'ok' ? 'Available' : group.key === 'stale' ? 'Fallback' : 'Unavailable' }}</p>
+        <p class="eyebrow">{{ group.key === 'ok' ? 'Available' : group.key === 'stale' ? 'Fallback' : 'Unavailable' }}</p>
         <h2>{{ group.title }}</h2>
       </div>
       <span class="group-count">{{ group.cards.length }} 个数据源</span>
