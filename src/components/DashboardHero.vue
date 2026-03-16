@@ -47,13 +47,22 @@ const emit = defineEmits<{
     <div class="hero-panel__header">
       <div>
         <p class="eyebrow">REFERENCE CLOCK</p>
-        <h2>主时间读数</h2>
+        <h2>主时钟读数</h2>
       </div>
       <span class="mode-pill" :class="calibrationModeClass" data-testid="calibration-mode">{{ calibrationModeLabel }}</span>
     </div>
 
     <div class="hero-panel__display">
       <div class="hero-panel__time-block">
+        <div class="hero-panel__speedline" aria-hidden="true">
+          <span class="hero-panel__speedline-badge">VELOCITY LOCK</span>
+          <span class="hero-panel__speedline-track">
+            <i />
+            <i />
+            <i />
+          </span>
+          <span class="hero-panel__speedline-copy">快读模式已接管主时钟</span>
+        </div>
         <p class="hero-panel__source">SOURCE · {{ MAIN_CLOCK_SOURCE_OPTIONS.find((option) => option.key === mainClockSource)?.label ?? '未知' }}</p>
         <p class="main-clock" data-testid="main-clock-primary">
           <span>{{ clockPrimaryParts.time }}</span>

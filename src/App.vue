@@ -53,14 +53,6 @@ const { pipSupported, pipActive, pipModeLabel, togglePipClock } = pip;
     <div class="velocity-page__flare velocity-page__flare--b" aria-hidden="true" />
 
     <section class="velocity-shell">
-      <header class="velocity-intro">
-        <p class="eyebrow">WHATTIME // SPEED VIEW</p>
-        <h1>时间，应该像速度一样一眼就到。</h1>
-        <p class="velocity-intro__copy">
-          重新设计成速度优先的读数界面。更强对比、更少装饰、更快扫读，把主时钟、延迟、偏差和状态压进一条干净的视觉轨道里。
-        </p>
-      </header>
-
       <section class="velocity-kpis" aria-label="summary">
         <article class="velocity-kpi velocity-kpi--primary">
           <span>AVG LATENCY</span>
@@ -115,7 +107,7 @@ const { pipSupported, pipActive, pipModeLabel, togglePipClock } = pip;
 
       <section class="velocity-section-head">
         <p class="eyebrow">SOURCE FEED</p>
-        <h2>所有时间源，全部进主赛道。</h2>
+        <h2>所有时间源，同步排进主赛道。</h2>
       </section>
 
       <section class="velocity-grid">
