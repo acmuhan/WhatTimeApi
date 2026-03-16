@@ -53,23 +53,6 @@ const { pipSupported, pipActive, pipModeLabel, togglePipClock } = pip;
     <div class="velocity-page__flare velocity-page__flare--b" aria-hidden="true" />
 
     <section class="velocity-shell">
-      <header class="velocity-intro">
-        <p class="eyebrow">WHATTIME // SPEED VIEW</p>
-        <div class="velocity-intro__lead" aria-hidden="true">
-          <span class="velocity-intro__flash" />
-          <span class="velocity-intro__tag">SPEED PRIORITY</span>
-          <span class="velocity-intro__trail">SCAN · LOCK · READ</span>
-        </div>
-        <h1 class="velocity-title">
-          <span>时间读数</span>
-          <span>就该像速度表</span>
-          <span>一眼命中</span>
-        </h1>
-        <p class="velocity-intro__copy">
-          这版把主时钟、延迟、偏差和状态重新压成一条更利落的读数轨道：先看到时间，再看到速度感，最后才是装饰。
-        </p>
-      </header>
-
       <section class="velocity-kpis" aria-label="summary">
         <article class="velocity-kpi velocity-kpi--primary">
           <span>AVG LATENCY</span>
