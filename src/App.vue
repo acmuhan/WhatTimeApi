@@ -1,9 +1,13 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import DashboardHero from './components/DashboardHero.vue';
 import ErrorLogPanel from './components/ErrorLogPanel.vue';
 import RankingsPanel from './components/RankingsPanel.vue';
 import SourceGroups from './components/SourceGroups.vue';
+import TelemetryCharts from './components/TelemetryCharts.vue';
 import { useTimeDashboard } from './composables/useTimeDashboard';
+import { useDashboardUi } from './composables/useDashboardUi';
+import type { SourceKey } from './types';
 
 const {
   calibrationModeLabel,
@@ -24,6 +28,7 @@ const {
   visibleGroups,
   latencyRanking,
   offsetRanking,
+  sourceCards,
   recentErrors,
   calibrateNow,
   setMainClockSource,
@@ -38,12 +43,22 @@ const {
   formatSignedMs,
   formatLatency,
   formatTimestampDetailedParts,
-  sourceStatusLabel,
   sourceStatusClass,
   pip
 } = useTimeDashboard();
 
 const { pipSupported, pipActive, pipModeLabel, togglePipClock } = pip;
+
+const { theme, locale, copy, mainClockSourceOptions, sourceLabel, statusLabel, toggleTheme, toggleLocale } = useDashboardUi();
+
+const localizedVisibleGroups = computed(() =>
+  visibleGroups.value.map((group) => ({
+    ...group,
+    title: copy.value.groups[group.key].title
+  }))
+);
+
+const activeSourceKey = computed<SourceKey>(() => (mainClockSource.value === 'reference' ? 'meituan' : mainClockSource.value));
 </script>
 
 <template>
@@ -72,6 +87,10 @@ const { pipSupported, pipActive, pipModeLabel, togglePipClock } = pip;
           :group-filter="groupFilter"
           :show-milliseconds="showMilliseconds"
           :millisecond-digits="millisecondDigits"
+          :source-options="mainClockSourceOptions"
+          :copy="copy"
+          :theme="theme"
+          :locale="locale"
           @toggle-auto-calibration="autoCalibration = !autoCalibration"
           @calibrate-now="calibrateNow('manual')"
           @set-main-clock-source="setMainClockSource"
@@ -83,37 +102,53 @@ const { pipSupported, pipActive, pipModeLabel, togglePipClock } = pip;
           @set-group-filter="setGroupFilter"
           @toggle-milliseconds="showMilliseconds = !showMilliseconds"
           @set-millisecond-digits="setMillisecondDigits"
+          @toggle-theme="toggleTheme"
+          @toggle-locale="toggleLocale"
         />
       </section>
 
       <section class="velocity-kpis" aria-label="summary">
         <article class="velocity-kpi velocity-kpi--primary">
-          <span>AVG LATENCY</span>
+          <span>{{ copy.summary.avgLatency }}</span>
           <strong>{{ formatLatency(summaryStats.avgLatency) }}</strong>
         </article>
         <article class="velocity-kpi">
-          <span>OK</span>
+          <span>{{ copy.summary.ok }}</span>
           <strong>{{ summaryStats.okCount }}</strong>
         </article>
         <article class="velocity-kpi">
-          <span>STALE</span>
+          <span>{{ copy.summary.stale }}</span>
           <strong>{{ summaryStats.staleCount }}</strong>
         </article>
         <article class="velocity-kpi">
-          <span>ERROR</span>
+          <span>{{ copy.summary.error }}</span>
           <strong>{{ summaryStats.errorCount }}</strong>
         </article>
       </section>
 
+      <section class="velocity-surface velocity-surface--charts">
+        <TelemetryCharts
+          :source-cards="sourceCards"
+          :copy="copy"
+          :source-label="sourceLabel"
+          :status-label="statusLabel"
+          :active-source-key="activeSourceKey"
+          :main-clock-source="mainClockSource"
+        />
+      </section>
+
       <section class="velocity-section-head">
-        <p class="eyebrow">SOURCE FEED</p>
-        <h2>所有时间源，同步排进主赛道。</h2>
+        <p class="eyebrow">{{ copy.sourceFeed.eyebrow }}</p>
+        <h2>{{ copy.sourceFeed.title }}</h2>
       </section>
 
       <section class="velocity-grid">
         <div class="velocity-grid__main velocity-surface velocity-surface--main">
           <SourceGroups
-            :groups="visibleGroups"
+            :groups="localizedVisibleGroups"
+            :copy="copy"
+            :source-label="sourceLabel"
+            :status-label="statusLabel"
             :show-milliseconds="showMilliseconds"
             :millisecond-digits="millisecondDigits"
             :format-clock-time="formatClockTime"
@@ -122,7 +157,6 @@ const { pipSupported, pipActive, pipModeLabel, togglePipClock } = pip;
             :format-signed-ms="formatSignedMs"
             :format-latency="formatLatency"
             :format-timestamp-detailed-parts="formatTimestampDetailedParts"
-            :source-status-label="sourceStatusLabel"
             :source-status-class="sourceStatusClass"
           />
         </div>
@@ -132,12 +166,14 @@ const { pipSupported, pipActive, pipModeLabel, togglePipClock } = pip;
             <RankingsPanel
               :latency-ranking="latencyRanking"
               :offset-ranking="offsetRanking"
+              :copy="copy"
+              :source-label="sourceLabel"
               :format-latency="formatLatency"
               :format-signed-ms="formatSignedMs"
             />
           </div>
           <div class="velocity-surface velocity-surface--side">
-            <ErrorLogPanel :recent-errors="recentErrors" />
+            <ErrorLogPanel :recent-errors="recentErrors" :copy="copy" />
           </div>
         </aside>
       </section>
