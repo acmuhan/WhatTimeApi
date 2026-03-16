@@ -1,0 +1,49 @@
+<svg width="1280" height="540" viewBox="0 0 1280 540" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg3" x1="0" y1="0" x2="1280" y2="540" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0A1117"/>
+      <stop offset="1" stop-color="#101B24"/>
+    </linearGradient>
+    <linearGradient id="node" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#15222D"/>
+      <stop offset="1" stop-color="#0E151C"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="540" rx="36" fill="url(#bg3)"/>
+  <text x="72" y="88" fill="#E4EAF1" font-family="'Segoe UI', 'PingFang SC', sans-serif" font-size="32">部署与运行路径 / Runtime & Deploy Flow</text>
+
+  <g transform="translate(82 176)">
+    <rect width="230" height="170" rx="24" fill="url(#node)" stroke="white" stroke-opacity="0.08"/>
+    <text x="34" y="54" fill="#A8B5C3" font-family="'Segoe UI', 'PingFang SC', sans-serif" font-size="18">前端 / Frontend</text>
+    <text x="34" y="100" fill="#F7FAFC" font-family="'Segoe UI Semibold', 'PingFang SC', sans-serif" font-size="38">Vue 3</text>
+    <text x="34" y="136" fill="#8FA0B2" font-family="'Segoe UI', 'PingFang SC', sans-serif" font-size="20">Vite · 主题切换 · 图表舱</text>
+  </g>
+
+  <g transform="translate(382 176)">
+    <rect width="230" height="170" rx="24" fill="url(#node)" stroke="white" stroke-opacity="0.08"/>
+    <text x="34" y="54" fill="#A8B5C3" font-family="'Segoe UI', 'PingFang SC', sans-serif" font-size="18">聚合层 / Aggregate API</text>
+    <text x="34" y="100" fill="#F7FAFC" font-family="'Segoe UI Semibold', 'PingFang SC', sans-serif" font-size="38">/api/time/aggregate</text>
+    <text x="34" y="136" fill="#8FA0B2" font-family="'Segoe UI', 'PingFang SC', sans-serif" font-size="20">缓存 · 去重 · 超时控制</text>
+  </g>
+
+  <g transform="translate(682 176)">
+    <rect width="230" height="170" rx="24" fill="url(#node)" stroke="white" stroke-opacity="0.08"/>
+    <text x="34" y="54" fill="#A8B5C3" font-family="'Segoe UI', 'PingFang SC', sans-serif" font-size="18">多源时间接口</text>
+    <text x="34" y="100" fill="#F7FAFC" font-family="'Segoe UI Semibold', 'PingFang SC', sans-serif" font-size="38">淘宝 / 美团 / 苏宁</text>
+    <text x="34" y="136" fill="#8FA0B2" font-family="'Segoe UI', 'PingFang SC', sans-serif" font-size="20">成功 · 回退 · 错误态</text>
+  </g>
+
+  <g transform="translate(982 176)">
+    <rect width="216" height="170" rx="24" fill="url(#node)" stroke="white" stroke-opacity="0.08"/>
+    <text x="34" y="54" fill="#A8B5C3" font-family="'Segoe UI', 'PingFang SC', sans-serif" font-size="18">部署目标</text>
+    <text x="34" y="100" fill="#F7FAFC" font-family="'Segoe UI Semibold', 'PingFang SC', sans-serif" font-size="34">Node / Vercel / FC</text>
+    <text x="34" y="136" fill="#8FA0B2" font-family="'Segoe UI', 'PingFang SC', sans-serif" font-size="20">同一套前端 · 多运行环境</text>
+  </g>
+
+  <path d="M312 261H382" stroke="#C9FF55" stroke-width="6" stroke-linecap="round"/>
+  <path d="M612 261H682" stroke="#55D6FF" stroke-width="6" stroke-linecap="round"/>
+  <path d="M912 261H982" stroke="#F7C84E" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="347" cy="261" r="8" fill="#C9FF55"/>
+  <circle cx="647" cy="261" r="8" fill="#55D6FF"/>
+  <circle cx="947" cy="261" r="8" fill="#F7C84E"/>
+</svg>
