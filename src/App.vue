@@ -53,25 +53,6 @@ const { pipSupported, pipActive, pipModeLabel, togglePipClock } = pip;
     <div class="velocity-page__flare velocity-page__flare--b" aria-hidden="true" />
 
     <section class="velocity-shell">
-      <section class="velocity-kpis" aria-label="summary">
-        <article class="velocity-kpi velocity-kpi--primary">
-          <span>AVG LATENCY</span>
-          <strong>{{ formatLatency(summaryStats.avgLatency) }}</strong>
-        </article>
-        <article class="velocity-kpi">
-          <span>OK</span>
-          <strong>{{ summaryStats.okCount }}</strong>
-        </article>
-        <article class="velocity-kpi">
-          <span>STALE</span>
-          <strong>{{ summaryStats.staleCount }}</strong>
-        </article>
-        <article class="velocity-kpi">
-          <span>ERROR</span>
-          <strong>{{ summaryStats.errorCount }}</strong>
-        </article>
-      </section>
-
       <section class="velocity-stage">
         <DashboardHero
           :calibration-mode-label="calibrationModeLabel"
@@ -103,6 +84,25 @@ const { pipSupported, pipActive, pipModeLabel, togglePipClock } = pip;
           @toggle-milliseconds="showMilliseconds = !showMilliseconds"
           @set-millisecond-digits="setMillisecondDigits"
         />
+      </section>
+
+      <section class="velocity-kpis" aria-label="summary">
+        <article class="velocity-kpi velocity-kpi--primary">
+          <span>AVG LATENCY</span>
+          <strong>{{ formatLatency(summaryStats.avgLatency) }}</strong>
+        </article>
+        <article class="velocity-kpi">
+          <span>OK</span>
+          <strong>{{ summaryStats.okCount }}</strong>
+        </article>
+        <article class="velocity-kpi">
+          <span>STALE</span>
+          <strong>{{ summaryStats.staleCount }}</strong>
+        </article>
+        <article class="velocity-kpi">
+          <span>ERROR</span>
+          <strong>{{ summaryStats.errorCount }}</strong>
+        </article>
       </section>
 
       <section class="velocity-section-head">
